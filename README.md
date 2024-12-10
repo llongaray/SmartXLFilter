@@ -1,55 +1,58 @@
-# SmartXLFilter
+# Excel Filter Pro
 
-SmartXLFilter é uma ferramenta Python interativa para manipulação inteligente de arquivos Excel, oferecendo uma interface de linha de comando (CLI) intuitiva para filtrar e gerenciar dados de planilhas.
+Excel Filter Pro é uma ferramenta Python com interface gráfica moderna para manipulação inteligente de arquivos Excel, oferecendo uma experiência intuitiva para filtrar e gerenciar dados de planilhas.
 
 ## Funcionalidades
 
+- **Interface Gráfica Moderna**: Interface limpa e intuitiva usando CustomTkinter
 - **Filtro Único**: Filtra dados baseado em uma única coluna e valor
-- **Filtros Múltiplos**: Aplica múltiplos filtros em cascata
+- **Filtros Múltiplos**: Aplica múltiplos filtros em cascata *(em breve)*
 - **Gerenciamento de Colunas**: 
-  - Manter apenas colunas específicas
-  - Remover colunas selecionadas
-- **Interface Interativa**: Utiliza prompts interativos para guiar o usuário
+  - Manter apenas colunas específicas *(em breve)*
+  - Remover colunas selecionadas *(em breve)*
+- **Design Profissional**: Visual inspirado no Excel com tema verde característico
 - **Preservação de Dados**: Sempre gera novos arquivos, mantendo o original intacto
 
 ## Pré-requisitos
 
 - Python 3.6 ou superior
+- customtkinter
 - pandas
-- InquirerPy
+- Pillow
 
 ## Instalação
 
 1. Clone o repositório
-2. Instale as dependências necessárias
+2. Instale as dependências:
+   ```
+   pip install customtkinter pandas Pillow
+   ```
 
 ## Como Usar
 
-1. Execute o programa
-2. Selecione uma das opções disponíveis:
-   - Filtrar Excel (único)
-   - Filtrar Excel (múltiplo)
-   - Manter colunas selecionadas
-   - Remover colunas selecionadas
-3. Siga as instruções interativas na tela
+1. Execute o programa:
+   ```
+   python app.py
+   ```
+2. Use a interface gráfica para:
+   - Selecionar um arquivo Excel
+   - Escolher a operação desejada
+   - Seguir as instruções na tela
 
-## Exemplos de Uso
+## Funcionalidades Detalhadas
 
 ### Filtro Único
-- Ideal para filtrar dados por uma categoria específica
-- Ex.: Filtrar vendas por região
+- Selecione uma coluna e um valor específico
+- O programa criará automaticamente um novo arquivo com os dados filtrados
 
-### Filtros Múltiplos
-- Permite combinar vários critérios de filtro
-- Ex.: Filtrar vendas por região E por produto
-
-### Gerenciamento de Colunas
-- Útil para extrair ou remover informações específicas
-- Ex.: Manter apenas colunas relevantes para análise
+### Próximas Atualizações
+- Filtros Múltiplos
+- Gerenciamento de Colunas
+- Visualização prévia dos dados
 
 ## Boas Práticas
 
-1. Sempre mantenha backup dos arquivos originais
+1. Mantenha backup dos arquivos originais
 2. Verifique o caminho dos arquivos antes de executar
 3. Certifique-se de ter permissões de escrita no diretório de saída
 
@@ -77,4 +80,4 @@ Leonardo Longaray dos Santos
 
 ---
 
-**Nota**: Este projeto foi desenvolvido com o objetivo de simplificar a manipulação de arquivos Excel através de uma interface amigável e intuitiva.
+**Nota**: Este projeto foi desenvolvido para simplificar a manipulação de arquivos Excel através de uma interface gráfica moderna e intuitiva.
