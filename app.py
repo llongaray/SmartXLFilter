@@ -62,6 +62,71 @@ class ExcelFilter:
         filtered_df.to_excel(output_file, index=False)
         return output_file
 
+    def filter_numeric_greater_than(self, column, value, output_path):
+        """Filtra valores numéricos maiores que o valor especificado"""
+        filtered_df = self.df[self.df[column] > value]
+        output_file = os.path.join(output_path, f'numeric_filtered_{os.path.basename(self.filepath)}')
+        filtered_df.to_excel(output_file, index=False)
+        return output_file
+
+    def filter_numeric_between(self, column, min_value, max_value, output_path):
+        """Filtra valores numéricos entre dois valores"""
+        filtered_df = self.df[(self.df[column] >= min_value) & (self.df[column] <= max_value)]
+        output_file = os.path.join(output_path, f'numeric_filtered_{os.path.basename(self.filepath)}')
+        filtered_df.to_excel(output_file, index=False)
+        return output_file
+
+    def is_numeric_column(self, column):
+        """Verifica se uma coluna é numérica"""
+        return pd.api.types.is_numeric_dtype(self.df[column])
+
+    @staticmethod
+    def unify_excel_files(directory_path, output_path):
+        """Unifica arquivos Excel baseado no CPF"""
+        all_files = [f for f in os.listdir(directory_path) if f.endswith(('.xlsx', '.xls'))]
+        if not all_files:
+            print("Nenhum arquivo Excel encontrado no diretório.")
+            return None
+
+        dfs = []
+        for file in all_files:
+            df = pd.read_excel(os.path.join(directory_path, file))
+            if 'CPF' not in df.columns:
+                print(f"Arquivo {file} não contém a coluna 'CPF'. Ignorando...")
+                continue
+            dfs.append(df)
+
+        if not dfs:
+            print("Nenhum arquivo válido encontrado.")
+            return None
+
+        unified_df = pd.concat(dfs, ignore_index=True)
+        unified_df = unified_df.drop_duplicates(subset=['CPF'], keep='first')
+        
+        output_file = os.path.join(output_path, 'unified_excel.xlsx')
+        unified_df.to_excel(output_file, index=False)
+        return output_file
+
+    def normalize_cpf(self, cpf):
+        """Normaliza o CPF removendo caracteres especiais e espaços"""
+        return ''.join(filter(str.isdigit, cpf))
+
+    def unify_excel_files_with_cpf(self, base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_path):
+        """Unifica dois arquivos Excel baseado no CPF"""
+        base_df = pd.read_excel(base_file_path)
+        second_df = pd.read_excel(second_file_path)
+
+        # Normaliza os CPFs
+        base_df[base_cpf_column] = base_df[base_cpf_column].apply(self.normalize_cpf)
+        second_df[second_cpf_column] = second_df[second_cpf_column].apply(self.normalize_cpf)
+
+        # Realiza o merge dos DataFrames
+        merged_df = pd.merge(base_df, second_df, left_on=base_cpf_column, right_on=second_cpf_column, how='inner')
+
+        output_file = os.path.join(output_path, 'unified_by_cpf.xlsx')
+        merged_df.to_excel(output_file, index=False)
+        return output_file
+
 def filter_single_excel():
     filter_system = ExcelFilter()
     
@@ -202,6 +267,114 @@ def remove_selected_columns():
     output_file = filter_system.remove_columns(selected_columns, output_dir)
     print(f"\nArquivo salvo sem as colunas selecionadas em: {output_file}")
 
+def filter_numeric():
+    """Função para filtrar valores numéricos"""
+    filter_system = ExcelFilter()
+    
+    excel_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel:"
+    ).execute()
+    
+    if not filter_system.load_excel(excel_path):
+        return
+
+    # Filtra apenas colunas numéricas
+    numeric_columns = [col for col in filter_system.headers if filter_system.is_numeric_column(col)]
+    if not numeric_columns:
+        print("Não há colunas numéricas neste arquivo.")
+        return
+
+    selected_header = inquirer.select(
+        message="Selecione a coluna numérica para filtrar:",
+        choices=numeric_columns
+    ).execute()
+
+    filter_type = inquirer.select(
+        message="Selecione o tipo de filtro:",
+        choices=[
+            Choice("1", "Maior que"),
+            Choice("2", "Entre valores")
+        ]
+    ).execute()
+
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo filtrado:"
+    ).execute()
+
+    if filter_type == "1":
+        value = float(inquirer.text(
+            message="Digite o valor mínimo:"
+        ).execute())
+        output_file = filter_system.filter_numeric_greater_than(selected_header, value, output_dir)
+    else:
+        min_value = float(inquirer.text(
+            message="Digite o valor mínimo:"
+        ).execute())
+        max_value = float(inquirer.text(
+            message="Digite o valor máximo:"
+        ).execute())
+        output_file = filter_system.filter_numeric_between(selected_header, min_value, max_value, output_dir)
+
+    print(f"\nArquivo filtrado salvo em: {output_file}")
+
+def unify_excel_files():
+    """Função para unificar arquivos Excel"""
+    print("\nLembre-se: os arquivos precisam ter colunas com mesmo nome para que os dados sejam unificados.")
+    print("Coluna obrigatória: 'CPF'")
+    
+    directory_path = inquirer.text(
+        message="Digite o caminho da pasta com os arquivos Excel:"
+    ).execute()
+    
+    if not os.path.isdir(directory_path):
+        print("Diretório inválido!")
+        return
+
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo unificado:"
+    ).execute()
+
+    output_file = ExcelFilter.unify_excel_files(directory_path, output_dir)
+    if output_file:
+        print(f"\nArquivo unificado salvo em: {output_file}")
+
+def unify_excel_files_with_cpf():
+    """Função para unificar arquivos Excel com base no CPF"""
+    filter_system = ExcelFilter()
+
+    base_file_path = inquirer.text(
+        message="Digite o caminho do arquivo base (.xlsx):"
+    ).execute()
+
+    if not filter_system.load_excel(base_file_path):
+        return
+
+    # Seleciona a coluna de CPF do arquivo base
+    base_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF do arquivo base:",
+        choices=filter_system.headers
+    ).execute()
+
+    second_file_path = inquirer.text(
+        message="Digite o caminho do segundo arquivo (.xlsx):"
+    ).execute()
+
+    if not filter_system.load_excel(second_file_path):
+        return
+
+    # Seleciona a coluna de CPF do segundo arquivo
+    second_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF do segundo arquivo:",
+        choices=filter_system.headers
+    ).execute()
+
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo unificado:"
+    ).execute()
+
+    output_file = filter_system.unify_excel_files_with_cpf(base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_dir)
+    print(f"\nArquivo unificado salvo em: {output_file}")
+
 def main():
     while True:
         choice = inquirer.select(
@@ -211,7 +384,10 @@ def main():
                 Choice("2", "Filtrar Excel (múltiplo)"),
                 Choice("3", "Manter colunas selecionadas"),
                 Choice("4", "Remover colunas selecionadas"),
-                Choice("5", "Sair")
+                Choice("5", "Filtrar valores numéricos"),
+                Choice("6", "Unificar arquivos Excel"),
+                Choice("7", "Unificar arquivos Excel com base no CPF"),
+                Choice("8", "Sair")
             ]
         ).execute()
         
@@ -223,6 +399,12 @@ def main():
             keep_selected_columns()
         elif choice == "4":
             remove_selected_columns()
+        elif choice == "5":
+            filter_numeric()
+        elif choice == "6":
+            unify_excel_files()
+        elif choice == "7":
+            unify_excel_files_with_cpf()
         else:
             print("Programa encerrado!")
             break
