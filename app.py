@@ -2,6 +2,9 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 import pandas as pd
 import os
+from rich import print
+from rich.progress import track
+import time
 
 class ExcelFilter:
     def __init__(self):
@@ -33,12 +36,29 @@ class ExcelFilter:
 
     def filter_and_save_multiple(self, filters, output_path):
         """Filtra o DataFrame com múltiplos critérios e salva em novo arquivo"""
+        print("\n[bold yellow]╔══ Iniciando Filtragem Múltipla ══╗[/bold yellow]\n")
+        
         filtered_df = self.df.copy()
+        total_inicial = len(filtered_df)
+        
+        steps = len(filters)
+        step_size = 100 // steps
+        
         for column, value in filters.items():
+            for _ in track(range(step_size), description=f"[cyan]Aplicando filtro para {column}...[/cyan]"):
+                time.sleep(0.01)
             filtered_df = filtered_df[filtered_df[column] == value]
         
         output_file = os.path.join(output_path, f'filtered_{os.path.basename(self.filepath)}')
         filtered_df.to_excel(output_file, index=False)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros originais:[/white]    {total_inicial:,}")
+        print(f"[white]► Registros após filtros:[/white] {len(filtered_df):,}")
+        print(f"[white]► Registros filtrados:[/white]    {total_inicial - len(filtered_df):,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def get_unique_values_filtered(self, column, current_filters):
@@ -50,16 +70,46 @@ class ExcelFilter:
 
     def keep_columns(self, columns, output_path):
         """Mantém apenas as colunas selecionadas"""
-        filtered_df = self.df[columns]
+        print("\n[bold yellow]╔══ Iniciando Seleção de Colunas ══╗[/bold yellow]\n")
+        
+        total_colunas = len(self.df.columns)
+        
+        for _ in track(range(100), description="[cyan]Processando colunas...[/cyan]"):
+            time.sleep(0.01)
+        
+        filtered_df = self.df[columns].copy()
         output_file = os.path.join(output_path, f'kept_columns_{os.path.basename(self.filepath)}')
         filtered_df.to_excel(output_file, index=False)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Total de colunas original:[/white] {total_colunas:,}")
+        print(f"[white]► Colunas mantidas:[/white]        {len(columns):,}")
+        print(f"[white]► Colunas removidas:[/white]       {total_colunas - len(columns):,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def remove_columns(self, columns, output_path):
         """Remove as colunas selecionadas"""
-        filtered_df = self.df.drop(columns=columns)
+        print("\n[bold yellow]╔══ Iniciando Remoção de Colunas ══╗[/bold yellow]\n")
+        
+        total_colunas = len(self.df.columns)
+        
+        for _ in track(range(100), description="[cyan]Processando colunas...[/cyan]"):
+            time.sleep(0.01)
+        
+        filtered_df = self.df.drop(columns=columns).copy()
         output_file = os.path.join(output_path, f'removed_columns_{os.path.basename(self.filepath)}')
         filtered_df.to_excel(output_file, index=False)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Total de colunas original:[/white] {total_colunas:,}")
+        print(f"[white]► Colunas removidas:[/white]        {len(columns):,}")
+        print(f"[white]► Colunas restantes:[/white]        {len(filtered_df.columns):,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def filter_numeric_greater_than(self, column, value, output_path):
@@ -115,54 +165,108 @@ class ExcelFilter:
 
     def unify_excel_files_with_cpf(self, base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_path):
         """Unifica dois arquivos Excel baseado no CPF"""
+        print("\n[bold yellow]╔══ Iniciando Unificação por CPF ══╗[/bold yellow]\n")
+        
         base_df = pd.read_excel(base_file_path)
         second_df = pd.read_excel(second_file_path)
+        total_base = len(base_df)
+        total_second = len(second_df)
 
         # Normaliza os CPFs
+        for _ in track(range(33), description="[cyan]Normalizando CPFs do arquivo base...[/cyan]"):
+            time.sleep(0.01)
         base_df[base_cpf_column] = base_df[base_cpf_column].apply(self.normalize_cpf)
+        
+        for _ in track(range(33), description="[cyan]Normalizando CPFs do segundo arquivo...[/cyan]"):
+            time.sleep(0.01)
         second_df[second_cpf_column] = second_df[second_cpf_column].apply(self.normalize_cpf)
-
-        # Realiza o merge dos DataFrames
+        
+        # Realiza o merge
+        for _ in track(range(34), description="[cyan]Unificando arquivos...[/cyan]"):
+            time.sleep(0.01)
         merged_df = pd.merge(base_df, second_df, left_on=base_cpf_column, right_on=second_cpf_column, how='inner')
-
+        
         output_file = os.path.join(output_path, 'unified_by_cpf.xlsx')
         merged_df.to_excel(output_file, index=False)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros no arquivo base:[/white]    {total_base:,}")
+        print(f"[white]► Registros no segundo arquivo:[/white] {total_second:,}")
+        print(f"[white]► Registros após unificação:[/white]    {len(merged_df):,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def filter_cpf_removal(self, base_file_path, removal_file_path, base_cpf_column, removal_cpf_column, output_path):
         """Remove do arquivo base os CPFs que existem no arquivo de remoção"""
+        print("\n[bold yellow]╔══ Iniciando Remoção de CPFs ══╗[/bold yellow]\n")
+        
         base_df = pd.read_excel(base_file_path)
         removal_df = pd.read_excel(removal_file_path)
+        total_base = len(base_df)
         
-        # Normaliza os CPFs em ambos os DataFrames
+        # Normaliza os CPFs
+        for _ in track(range(33), description="[cyan]Normalizando CPFs do arquivo base...[/cyan]"):
+            time.sleep(0.01)
         base_df[base_cpf_column] = base_df[base_cpf_column].apply(self.normalize_cpf)
+        
+        for _ in track(range(33), description="[cyan]Normalizando CPFs do arquivo de remoção...[/cyan]"):
+            time.sleep(0.01)
         removal_df[removal_cpf_column] = removal_df[removal_cpf_column].apply(self.normalize_cpf)
         
-        # Remove as linhas onde o CPF existe no arquivo de remoção
-        filtered_df = base_df[~base_df[base_cpf_column].isin(removal_df[removal_cpf_column])]
+        # Remove as linhas
+        for _ in track(range(34), description="[cyan]Removendo CPFs...[/cyan]"):
+            time.sleep(0.01)
+        filtered_df = base_df[~base_df[base_cpf_column].isin(removal_df[removal_cpf_column])].copy()
         
-        # Formata os CPFs com 11 dígitos antes de salvar
+        # Formata os CPFs
         filtered_df[base_cpf_column] = filtered_df[base_cpf_column].apply(self.format_cpf)
         
         output_file = os.path.join(output_path, f'cpf_filtered_{os.path.basename(base_file_path)}')
         filtered_df.to_excel(output_file, index=False)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros originais:[/white]    {total_base:,}")
+        print(f"[white]► Registros após remoção:[/white] {len(filtered_df):,}")
+        print(f"[white]► Registros removidos:[/white]    {total_base - len(filtered_df):,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def filter_cpf_duplicates(self, file_path, cpf_column, output_path):
         """Remove CPFs duplicados mantendo apenas a primeira ocorrência"""
+        print("\n[bold yellow]╔══ Iniciando Remoção de Duplicatas ══╗[/bold yellow]\n")
+        
         df = pd.read_excel(file_path)
+        total = len(df)
         
         # Normaliza os CPFs
+        for _ in track(range(50), description="[cyan]Normalizando CPFs...[/cyan]"):
+            time.sleep(0.01)
         df[cpf_column] = df[cpf_column].apply(self.normalize_cpf)
         
-        # Remove duplicatas mantendo a primeira ocorrência
-        filtered_df = df.drop_duplicates(subset=[cpf_column], keep='first')
+        # Remove duplicatas
+        for _ in track(range(50), description="[cyan]Removendo duplicatas...[/cyan]"):
+            time.sleep(0.01)
+        filtered_df = df.drop_duplicates(subset=[cpf_column], keep='first').copy()
         
-        # Formata os CPFs com 11 dígitos antes de salvar
+        # Formata os CPFs
         filtered_df[cpf_column] = filtered_df[cpf_column].apply(self.format_cpf)
         
         output_file = os.path.join(output_path, f'unique_cpf_{os.path.basename(file_path)}')
         filtered_df.to_excel(output_file, index=False)
+        
+        duplicatas = total - len(filtered_df)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros originais:[/white]    {total:,}")
+        print(f"[white]► Registros únicos:[/white]      {len(filtered_df):,}")
+        print(f"[white]► Duplicatas removidas:[/white]  {duplicatas:,}")
+        print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+        
         return output_file
 
     def format_cpf(self, cpf):
@@ -175,11 +279,14 @@ class ExcelFilter:
 def filter_single_excel():
     filter_system = ExcelFilter()
     
+    print("\n[bold yellow]╔══ Iniciando Filtro Único ══╗[/bold yellow]\n")
+    
     excel_path = inquirer.text(
         message="Digite o caminho do arquivo Excel:"
     ).execute()
     
     if not filter_system.load_excel(excel_path):
+        print("[bold red]✗ Erro ao carregar arquivo![/bold red]\n")
         return
     
     selected_header = inquirer.select(
@@ -198,8 +305,20 @@ def filter_single_excel():
         message="Digite o caminho para salvar o arquivo filtrado:"
     ).execute()
     
+    total_registros = len(filter_system.df)
+    
+    for _ in track(range(100), description="[cyan]Aplicando filtro...[/cyan]"):
+        time.sleep(0.01)
+    
+    filtered_df = filter_system.df[filter_system.df[selected_header] == selected_value].copy()
     output_file = filter_system.filter_and_save(selected_header, selected_value, output_dir)
-    print(f"\nArquivo filtrado salvo em: {output_file}")
+    
+    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+    print(f"[white]► Registros originais:[/white]    {total_registros:,}")
+    print(f"[white]► Registros filtrados:[/white]    {len(filtered_df):,}")
+    print(f"[white]► Registros removidos:[/white]    {total_registros - len(filtered_df):,}")
+    print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+    print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
 
 def filter_multiple_excel():
     filter_system = ExcelFilter()
@@ -316,17 +435,20 @@ def filter_numeric():
     """Função para filtrar valores numéricos"""
     filter_system = ExcelFilter()
     
+    print("\n[bold yellow]╔══ Iniciando Filtro Numérico ══╗[/bold yellow]\n")
+    
     excel_path = inquirer.text(
         message="Digite o caminho do arquivo Excel:"
     ).execute()
     
     if not filter_system.load_excel(excel_path):
+        print("[bold red]✗ Erro ao carregar arquivo![/bold red]\n")
         return
 
     # Filtra apenas colunas numéricas
     numeric_columns = [col for col in filter_system.headers if filter_system.is_numeric_column(col)]
     if not numeric_columns:
-        print("Não há colunas numéricas neste arquivo.")
+        print("[bold red]✗ Não há colunas numéricas neste arquivo![/bold red]\n")
         return
 
     selected_header = inquirer.select(
@@ -346,11 +468,24 @@ def filter_numeric():
         message="Digite o caminho para salvar o arquivo filtrado:"
     ).execute()
 
+    total_registros = len(filter_system.df)
+
     if filter_type == "1":
         value = float(inquirer.text(
             message="Digite o valor mínimo:"
         ).execute())
+        
+        for _ in track(range(100), description="[cyan]Aplicando filtro...[/cyan]"):
+            time.sleep(0.01)
+            
+        filtered_df = filter_system.df[filter_system.df[selected_header] > value].copy()
         output_file = filter_system.filter_numeric_greater_than(selected_header, value, output_dir)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros originais:[/white]    {total_registros:,}")
+        print(f"[white]► Registros > {value}:[/white]    {len(filtered_df):,}")
+        print(f"[white]► Registros removidos:[/white]    {total_registros - len(filtered_df):,}")
+        
     else:
         min_value = float(inquirer.text(
             message="Digite o valor mínimo:"
@@ -358,30 +493,50 @@ def filter_numeric():
         max_value = float(inquirer.text(
             message="Digite o valor máximo:"
         ).execute())
+        
+        for _ in track(range(100), description="[cyan]Aplicando filtro...[/cyan]"):
+            time.sleep(0.01)
+            
+        filtered_df = filter_system.df[(filter_system.df[selected_header] >= min_value) & 
+                                     (filter_system.df[selected_header] <= max_value)].copy()
         output_file = filter_system.filter_numeric_between(selected_header, min_value, max_value, output_dir)
+        
+        print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+        print(f"[white]► Registros originais:[/white]    {total_registros:,}")
+        print(f"[white]► Registros entre {min_value} e {max_value}:[/white]    {len(filtered_df):,}")
+        print(f"[white]► Registros removidos:[/white]    {total_registros - len(filtered_df):,}")
 
-    print(f"\nArquivo filtrado salvo em: {output_file}")
+    print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+    print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
 
 def unify_excel_files():
     """Função para unificar arquivos Excel"""
-    print("\nLembre-se: os arquivos precisam ter colunas com mesmo nome para que os dados sejam unificados.")
-    print("Coluna obrigatória: 'CPF'")
+    print("\n[bold yellow]╔══ Iniciando Unificação de Arquivos ══╗[/bold yellow]\n")
+    print("[white]► Requisitos: os arquivos precisam ter colunas com mesmo nome[/white]")
+    print("[white]► Coluna obrigatória: 'CPF'[/white]\n")
     
     directory_path = inquirer.text(
         message="Digite o caminho da pasta com os arquivos Excel:"
     ).execute()
     
     if not os.path.isdir(directory_path):
-        print("Diretório inválido!")
+        print("[bold red]✗ Diretório inválido![/bold red]\n")
         return
 
     output_dir = inquirer.text(
         message="Digite o caminho para salvar o arquivo unificado:"
     ).execute()
 
+    for _ in track(range(100), description="[cyan]Unificando arquivos...[/cyan]"):
+        time.sleep(0.01)
+
     output_file = ExcelFilter.unify_excel_files(directory_path, output_dir)
+    
     if output_file:
-        print(f"\nArquivo unificado salvo em: {output_file}")
+        print("\n[bold green]✓ Processo concluído com sucesso![/bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+    else:
+        print("[bold red]✗ Erro ao unificar arquivos![/bold red]\n")
 
 def unify_excel_files_with_cpf():
     """Função para unificar arquivos Excel com base no CPF"""
