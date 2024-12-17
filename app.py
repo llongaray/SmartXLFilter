@@ -109,7 +109,9 @@ class ExcelFilter:
 
     def normalize_cpf(self, cpf):
         """Normaliza o CPF removendo caracteres especiais e espaços"""
-        return ''.join(filter(str.isdigit, cpf))
+        # Converte para string primeiro
+        cpf_str = str(cpf)
+        return ''.join(filter(str.isdigit, cpf_str))
 
     def unify_excel_files_with_cpf(self, base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_path):
         """Unifica dois arquivos Excel baseado no CPF"""
@@ -126,6 +128,49 @@ class ExcelFilter:
         output_file = os.path.join(output_path, 'unified_by_cpf.xlsx')
         merged_df.to_excel(output_file, index=False)
         return output_file
+
+    def filter_cpf_removal(self, base_file_path, removal_file_path, base_cpf_column, removal_cpf_column, output_path):
+        """Remove do arquivo base os CPFs que existem no arquivo de remoção"""
+        base_df = pd.read_excel(base_file_path)
+        removal_df = pd.read_excel(removal_file_path)
+        
+        # Normaliza os CPFs em ambos os DataFrames
+        base_df[base_cpf_column] = base_df[base_cpf_column].apply(self.normalize_cpf)
+        removal_df[removal_cpf_column] = removal_df[removal_cpf_column].apply(self.normalize_cpf)
+        
+        # Remove as linhas onde o CPF existe no arquivo de remoção
+        filtered_df = base_df[~base_df[base_cpf_column].isin(removal_df[removal_cpf_column])]
+        
+        # Formata os CPFs com 11 dígitos antes de salvar
+        filtered_df[base_cpf_column] = filtered_df[base_cpf_column].apply(self.format_cpf)
+        
+        output_file = os.path.join(output_path, f'cpf_filtered_{os.path.basename(base_file_path)}')
+        filtered_df.to_excel(output_file, index=False)
+        return output_file
+
+    def filter_cpf_duplicates(self, file_path, cpf_column, output_path):
+        """Remove CPFs duplicados mantendo apenas a primeira ocorrência"""
+        df = pd.read_excel(file_path)
+        
+        # Normaliza os CPFs
+        df[cpf_column] = df[cpf_column].apply(self.normalize_cpf)
+        
+        # Remove duplicatas mantendo a primeira ocorrência
+        filtered_df = df.drop_duplicates(subset=[cpf_column], keep='first')
+        
+        # Formata os CPFs com 11 dígitos antes de salvar
+        filtered_df[cpf_column] = filtered_df[cpf_column].apply(self.format_cpf)
+        
+        output_file = os.path.join(output_path, f'unique_cpf_{os.path.basename(file_path)}')
+        filtered_df.to_excel(output_file, index=False)
+        return output_file
+
+    def format_cpf(self, cpf):
+        """Formata o CPF para ter 11 dígitos, adicionando zeros à esquerda se necessário"""
+        # Primeiro normaliza o CPF para ter apenas dígitos
+        cpf_clean = self.normalize_cpf(cpf)
+        # Adiciona zeros à esquerda se necessário para ter 11 dígitos
+        return cpf_clean.zfill(11)
 
 def filter_single_excel():
     filter_system = ExcelFilter()
@@ -375,6 +420,69 @@ def unify_excel_files_with_cpf():
     output_file = filter_system.unify_excel_files_with_cpf(base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_dir)
     print(f"\nArquivo unificado salvo em: {output_file}")
 
+def filter_cpf_removal():
+    """Função para remover CPFs de um arquivo base que existem em outro arquivo"""
+    filter_system = ExcelFilter()
+    
+    # Arquivo base
+    base_file_path = inquirer.text(
+        message="Digite o caminho do arquivo base (.xlsx):"
+    ).execute()
+    
+    if not filter_system.load_excel(base_file_path):
+        return
+        
+    # Seleciona coluna CPF do arquivo base
+    base_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF do arquivo base:",
+        choices=filter_system.headers
+    ).execute()
+    
+    # Arquivo de remoção
+    removal_file_path = inquirer.text(
+        message="Digite o caminho do arquivo com CPFs a serem removidos (.xlsx):"
+    ).execute()
+    
+    if not filter_system.load_excel(removal_file_path):
+        return
+        
+    # Seleciona coluna CPF do arquivo de remoção
+    removal_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF do arquivo de remoção:",
+        choices=filter_system.headers
+    ).execute()
+    
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo filtrado:"
+    ).execute()
+    
+    output_file = filter_system.filter_cpf_removal(base_file_path, removal_file_path, 
+                                                 base_cpf_column, removal_cpf_column, output_dir)
+    print(f"\nArquivo filtrado salvo em: {output_file}")
+
+def filter_cpf_duplicates():
+    """Função para remover CPFs duplicados"""
+    filter_system = ExcelFilter()
+    
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo (.xlsx):"
+    ).execute()
+    
+    if not filter_system.load_excel(file_path):
+        return
+        
+    cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF:",
+        choices=filter_system.headers
+    ).execute()
+    
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo filtrado:"
+    ).execute()
+    
+    output_file = filter_system.filter_cpf_duplicates(file_path, cpf_column, output_dir)
+    print(f"\nArquivo com CPFs únicos salvo em: {output_file}")
+
 def main():
     while True:
         choice = inquirer.select(
@@ -387,7 +495,9 @@ def main():
                 Choice("5", "Filtrar valores numéricos"),
                 Choice("6", "Unificar arquivos Excel"),
                 Choice("7", "Unificar arquivos Excel com base no CPF"),
-                Choice("8", "Sair")
+                Choice("8", "Filtrar CPF - Remoção"),
+                Choice("9", "Filtrar CPF - Duplicidade"),
+                Choice("10", "Sair")
             ]
         ).execute()
         
@@ -405,7 +515,11 @@ def main():
             unify_excel_files()
         elif choice == "7":
             unify_excel_files_with_cpf()
-        else:
+        elif choice == "8":
+            filter_cpf_removal()
+        elif choice == "9":
+            filter_cpf_duplicates()
+        elif choice == "10":
             print("Programa encerrado!")
             break
 
