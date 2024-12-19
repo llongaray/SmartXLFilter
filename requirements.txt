@@ -1,0 +1,4 @@
+InquirerPy
+pandas
+rich
+openpyxl

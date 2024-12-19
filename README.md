@@ -31,6 +31,14 @@ SmartXLFilter é uma ferramenta Python interativa para manipulação inteligente
    - Filtrar Excel (múltiplo)
    - Manter colunas selecionadas
    - Remover colunas selecionadas
+   - Filtrar valores numéricos
+   - Unificar arquivos Excel
+   - Unificar arquivos Excel com base no CPF
+   - Filtrar CPF - Remoção
+   - Filtrar CPF - Duplicidade
+   - Filtrar Celular - Remoção
+   - Formatar Números com Prefixo '55'
+   - Filtrar Nomes - Remoção
 3. Siga as instruções interativas na tela
 
 ## Exemplos de Uso
@@ -78,3 +86,9 @@ Leonardo Longaray dos Santos
 ---
 
 **Nota**: Este projeto foi desenvolvido com o objetivo de simplificar a manipulação de arquivos Excel através de uma interface amigável e intuitiva.
+
+## Atualizações Recentes
+
+- Adicionada a funcionalidade de formatação de números com o prefixo '55'.
+- Melhorias na interface de usuário para seleção de colunas e exibição de resultados.
+- **Atenção**: As opções de filtro por número e remoção de nome não estão funcionando no momento. Estamos trabalhando para resolver esses problemas.
