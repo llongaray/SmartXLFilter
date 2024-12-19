@@ -169,7 +169,7 @@ class ExcelFilter:
 
     def unify_excel_files_with_cpf(self, base_file_path, second_file_path, base_cpf_column, second_cpf_column, output_path):
         """Unifica dois arquivos Excel baseado no CPF"""
-        print("\n[bold yellow]╔══ Iniciando Unificação por CPF ══╗[/bold yellow]\n")
+        print("\n[bold yellow]╔═�� Iniciando Unificação por CPF ══╗[/bold yellow]\n")
         
         base_df = pd.read_excel(base_file_path)
         second_df = pd.read_excel(second_file_path)
@@ -686,190 +686,6 @@ def format_numbers_with_prefix():
     print(f"[white]► Números formatados com prefixo '55':[/white] {formatted_count:,}")
     print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
 
-def filter_cellphone_removal():
-    """Função para remover números de celular de um arquivo base que existem em outro arquivo"""
-    filter_system = ExcelFilter()
-    
-    while True:  # Loop para permitir tentativas repetidas
-        try:
-            # Arquivo base
-            base_file_path = inquirer.text(
-                message="Digite o caminho do arquivo base (.xlsx):"
-            ).execute()
-            
-            if not filter_system.load_excel(base_file_path):
-                logging.error("Erro ao carregar o arquivo base.")
-                continue
-            
-            # Normaliza os nomes das colunas
-            filter_system.headers = [col.strip() for col in filter_system.headers]
-            print("Colunas do arquivo base:", filter_system.headers)
-            
-            # Seleciona coluna de números do arquivo base
-            base_number_column = inquirer.select(
-                message="Selecione a coluna de números do arquivo base:",
-                choices=filter_system.headers
-            ).execute()
-            
-            # Verifica se a coluna existe
-            if base_number_column not in filter_system.headers:
-                logging.error(f"Coluna '{base_number_column}' não encontrada no arquivo base.")
-                continue
-            
-            # Contagem de números no arquivo base
-            total_base_numbers = filter_system.df[base_number_column].notnull().sum()
-            print(f"[white]► Total de números na coluna '{base_number_column}' do arquivo base: {total_base_numbers:,}[/white]")
-            
-            # Arquivo de remoção
-            removal_file_path = inquirer.text(
-                message="Digite o caminho do arquivo com números a serem removidos (.xlsx):"
-            ).execute()
-            
-            if not filter_system.load_excel(removal_file_path):
-                logging.error("Erro ao carregar o arquivo de remoção.")
-                continue
-            
-            # Normaliza os nomes das colunas do arquivo de remoção
-            filter_system.headers = [col.strip() for col in filter_system.headers]
-            print("Colunas do arquivo de remoção:", filter_system.headers)
-            
-            # Seleciona coluna de números do arquivo de remoção
-            removal_number_column = inquirer.select(
-                message="Selecione a coluna de números do arquivo de remoção:",
-                choices=filter_system.headers
-            ).execute()
-            
-            # Verifica se a coluna existe
-            if removal_number_column not in filter_system.headers:
-                logging.error(f"Coluna '{removal_number_column}' não encontrada no arquivo de remoção.")
-                continue
-            
-            # Contagem de números no arquivo de remoção
-            removal_df = pd.read_excel(removal_file_path)
-            total_removal_numbers = removal_df[removal_number_column].notnull().sum()
-            print(f"[white]► Total de números na coluna '{removal_number_column}' do arquivo de remoção: {total_removal_numbers:,}[/white]")
-            
-            output_dir = inquirer.text(
-                message="Digite o caminho para salvar o arquivo filtrado:"
-            ).execute()
-            
-            # Normaliza os números
-            filter_system.df[base_number_column] = filter_system.df[base_number_column].apply(filter_system.normalize_cpf)
-            removal_df[removal_number_column] = removal_df[removal_number_column].apply(filter_system.normalize_cpf)
-            
-            # Remove as linhas
-            filtered_df = filter_system.df[~filter_system.df[base_number_column].isin(removal_df[removal_number_column])].copy()
-            
-            # Contagem de registros removidos
-            total_removed = len(filter_system.df) - len(filtered_df)
-            
-            output_file = os.path.join(output_dir, f'cellphone_filtered_{os.path.basename(base_file_path)}')
-            filtered_df.to_excel(output_file, index=False)
-            
-            print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
-            print(f"[white]► Registros originais no arquivo base:[/white]    {len(filter_system.df):,}")
-            print(f"[white]► Registros no arquivo de remoção:[/white]        {total_removal_numbers:,}")
-            print(f"[white]► Registros após remoção:[/white]               {len(filtered_df):,}")
-            print(f"[white]► Registros removidos:[/white]                  {total_removed:,}")
-            print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
-            print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
-            break  # Sai do loop se tudo correr bem
-
-        except Exception as e:
-            logging.error(f"Ocorreu um erro: {e}")
-            print(f"[bold red]✗ Ocorreu um erro: {e}[/bold red]\n")
-            continue  # Permite que o usuário tente novamente
-
-def filter_names_removal():
-    """Função para remover nomes de um arquivo base que existem em outro arquivo"""
-    filter_system = ExcelFilter()
-    
-    while True:  # Loop para permitir tentativas repetidas
-        try:
-            # Arquivo base
-            base_file_path = inquirer.text(
-                message="Digite o caminho do arquivo base (.xlsx):"
-            ).execute()
-            
-            if not filter_system.load_excel(base_file_path):
-                logging.error("Erro ao carregar o arquivo base.")
-                continue
-            
-            # Normaliza os nomes das colunas
-            filter_system.headers = [col.strip().upper() for col in filter_system.headers]  # Normaliza para maiúsculas
-            print("Colunas do arquivo base:", filter_system.headers)
-            
-            # Solicita o nome da coluna de nomes do arquivo base
-            base_name_column = inquirer.text(
-                message="Digite o nome da coluna de nomes do arquivo base:"
-            ).execute().strip().upper()  # Normaliza para maiúsculas
-            
-            # Verifica se a coluna existe
-            if base_name_column not in filter_system.headers:
-                logging.error(f"Coluna '{base_name_column}' não encontrada no arquivo base.")
-                print(f"[bold red]✗ Coluna '{base_name_column}' não encontrada no arquivo base.[/bold red]")
-                continue
-            
-            # Contagem de nomes no arquivo base
-            total_base_names = filter_system.df[base_name_column].notnull().sum()
-            print(f"[white]► Total de nomes na coluna '{base_name_column}' do arquivo base: {total_base_names:,}[/white]")
-            
-            # Arquivo de remoção
-            removal_file_path = inquirer.text(
-                message="Digite o caminho do arquivo com nomes a serem removidos (.xlsx):"
-            ).execute()
-            
-            if not filter_system.load_excel(removal_file_path):
-                logging.error("Erro ao carregar o arquivo de remoção.")
-                continue
-            
-            # Normaliza os nomes das colunas do arquivo de remoção
-            filter_system.headers = [col.strip().upper() for col in filter_system.headers]  # Normaliza para maiúsculas
-            print("Colunas do arquivo de remoção:", filter_system.headers)
-            
-            # Solicita o nome da coluna de nomes do arquivo de remoção
-            removal_name_column = inquirer.text(
-                message="Digite o nome da coluna de nomes do arquivo de remoção:"
-            ).execute().strip().upper()  # Normaliza para maiúsculas
-            
-            # Verifica se a coluna existe
-            if removal_name_column not in filter_system.headers:
-                logging.error(f"Coluna '{removal_name_column}' não encontrada no arquivo de remoção.")
-                print(f"[bold red]✗ Coluna '{removal_name_column}' não encontrada no arquivo de remoção.[/bold red]")
-                continue
-            
-            # Contagem de nomes no arquivo de remoção
-            removal_df = pd.read_excel(removal_file_path)
-            total_removal_names = removal_df[removal_name_column].notnull().sum()
-            print(f"[white]► Total de nomes na coluna '{removal_name_column}' do arquivo de remoção: {total_removal_names:,}[/white]")
-            
-            output_dir = inquirer.text(
-                message="Digite o caminho para salvar o arquivo filtrado:"
-            ).execute()
-            
-            # Remove as linhas
-            filtered_df = filter_system.df[~filter_system.df[base_name_column].isin(removal_df[removal_name_column])].copy()
-            
-            # Contagem de registros removidos
-            total_removed = total_base_names - len(filtered_df)
-            
-            output_file = os.path.join(output_dir, f'names_filtered_{os.path.basename(base_file_path)}')
-            filtered_df.to_excel(output_file, index=False)
-            
-            print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
-            print(f"[white]► Registros originais no arquivo base:[/white]    {total_base_names:,}")
-            print(f"[white]► Registros no arquivo de remoção:[/white]        {total_removal_names:,}")
-            print(f"[white]► Registros após remoção:[/white]               {len(filtered_df):,}")
-            print(f"[white]► Registros removidos:[/white]                  {total_removed:,}")
-            print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
-            print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
-            break  # Sai do loop se tudo correr bem
-
-        except Exception as e:
-            logging.error(f"Ocorreu um erro: {e}")
-            print(f"[bold red]✗ Ocorreu um erro: {e}[/bold red]\n")
-            continue  # Permite que o usuário tente novamente
-
 def main():
     while True:
         choice = inquirer.select(
@@ -884,10 +700,8 @@ def main():
                 Choice("7", "Unificar arquivos Excel com base no CPF"),
                 Choice("8", "Filtrar CPF - Remoção"),
                 Choice("9", "Filtrar CPF - Duplicidade"),
-                Choice("10", "Filtrar Celular - Remoção"),
-                Choice("11", "Formatar Números com Prefixo '55'"),
-                Choice("12", "Filtrar Nomes - Remoção"),
-                Choice("13", "Sair")
+                Choice("10", "Formatar Números com Prefixo '55'"),
+                Choice("11", "Sair")
             ]
         ).execute()
         
@@ -910,12 +724,8 @@ def main():
         elif choice == "9":
             filter_cpf_duplicates()
         elif choice == "10":
-            filter_cellphone_removal()
-        elif choice == "11":
             format_numbers_with_prefix()
-        elif choice == "12":
-            filter_names_removal()
-        elif choice == "13":
+        elif choice == "11":
             print("Programa encerrado!")
             break
 
