@@ -89,6 +89,15 @@ Leonardo Longaray dos Santos
 
 ## Atualizações Recentes
 
+### Atualização 1.0:
 - Adicionada a funcionalidade de formatação de números com o prefixo '55'.
 - Melhorias na interface de usuário para seleção de colunas e exibição de resultados.
-- **Atenção**: As opções de filtro por número e remoção de nome não estão funcionando no momento. Estamos trabalhando para resolver esses problemas.
+
+### Atualização 1.1.0:
+- Implementada a funcionalidade de remoção de nomes com base em uma lista de blacklist.
+- Adicionada validação e normalização de CPFs, garantindo padrão de 11 dígitos.
+
+### Atualização 1.1.1:
+- Adicionada a funcionalidade de formatação de RGs com validação e ajuste para 10 dígitos.
+- Reorganização do menu principal em categorias (Filtros, Remoções, Adições/Unificações, Formatações).
+- Melhorias na interface para selecionar e processar múltiplas opções de maneira mais intuitiva.
