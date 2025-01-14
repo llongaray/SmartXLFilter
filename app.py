@@ -1,5 +1,6 @@
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
+import requests
 import pandas as pd
 import os
 from rich import print
@@ -769,50 +770,58 @@ def adjust_cpfs_to_11_digits():
     except Exception as e:
         print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
 
-def format_money_column():
-    """Função para formatar uma coluna de valores para o padrão monetário"""
-    filter_system = ExcelFilter()
-    
+def format_values_to_money():
+    """
+    Formata valores de uma coluna para o formato monetário (123400 -> 1234,00).
+    """
     print("\n[bold yellow]╔══ Iniciando Formatação Monetária ══╗[/bold yellow]\n")
-    
-    excel_path = inquirer.text(
-        message="Digite o caminho do arquivo Excel:"
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
     ).execute()
-    
-    if not filter_system.load_excel(excel_path):
-        print("[bold red]✗ Erro ao carregar arquivo![/bold red]\n")
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
         return
-    
+
+    # Seleciona a coluna de valores
     selected_column = inquirer.select(
-        message="Selecione a coluna de valores:",
-        choices=filter_system.headers
+        message="Selecione a coluna com os valores a formatar:",
+        choices=df.columns.tolist()
     ).execute()
-    
-    total_registros = len(filter_system.df)
-    formatted_count = 0
-    
+
+    print("\n[cyan]Formatando valores...[/cyan]")
+
     # Formata os valores para o padrão monetário
-    for index, value in filter_system.df[selected_column].items():
+    def format_money(value):
         try:
-            # Converte o valor para string e formata para o padrão monetário
+            # Divide por 100 e converte para string no formato monetário
             formatted_value = f"{int(value) / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            filter_system.df.at[index, selected_column] = formatted_value
-            formatted_count += 1
-        except ValueError:
-            continue
-    
+            return formatted_value
+        except (ValueError, TypeError):
+            return value  # Retorna o valor original se não for possível formatar
+
+    # Aplica a formatação
+    for _ in track(range(100), description="[cyan]Processando valores...[/cyan]"):
+        df[selected_column] = df[selected_column].apply(format_money)
+
+    # Pergunta o diretório para salvar
     output_dir = inquirer.text(
         message="Digite o caminho para salvar o arquivo formatado:"
     ).execute()
-    
-    output_file = os.path.join(output_dir, f'format_money_{os.path.basename(excel_path)}')
-    filter_system.df.to_excel(output_file, index=False)
-    
-    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
-    print(f"[white]► Total de registros processados:[/white] {total_registros:,}")
-    print(f"[white]► Valores formatados:[/white] {formatted_count:,}")
-    print(f"\n[bold green]✓ Processo concluído com sucesso![/bold green]")
-    print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+
+    # Adiciona o prefixo ao nome do arquivo de saída
+    output_file = os.path.join(output_dir, f"format_money_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
 
 def filter_and_format_rgs():
     """Função para filtrar RGS inválidos e formatar os válidos para 10 dígitos."""
@@ -893,6 +902,143 @@ def filter_and_format_rgs():
     except Exception as e:
         print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[/bold red]\n")
 
+def formatar_coluna_data():
+    """Função para formatar colunas de data em um arquivo Excel."""
+    print("\n[bold yellow]╔══ Iniciando Formatação de Datas ══╗[/bold yellow]\n")
+
+    # Recebe o arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de data
+    date_column = inquirer.select(
+        message="Selecione a coluna de data:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Formatando dados...[/cyan]")
+
+    for _ in track(range(100), description="[cyan]Processando...[/cyan]"):
+        pass
+
+    # Converte as datas para o formato dd/MM/YYYY
+    try:
+        df[date_column] = pd.to_datetime(df[date_column], errors='coerce').dt.strftime('%d/%m/%Y')
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao formatar as datas: {e}[/bold red]\n")
+        return
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo formatado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"data_formatada_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
+
+
+def adicionar_dados_por_cpf():
+    """Função para adicionar colunas de dados de um arquivo Excel a outro com base no CPF."""
+    print("\n[bold yellow]╔══ Iniciando Junção por CPF ══╗[/bold yellow]\n")
+
+    # Recebe o primeiro arquivo (base)
+    base_file_path = inquirer.text(
+        message="Digite o caminho do arquivo base (.xlsx):"
+    ).execute()
+
+    try:
+        base_df = pd.read_excel(base_file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo base: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de CPF no arquivo base
+    base_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF no arquivo base:",
+        choices=base_df.columns.tolist()
+    ).execute()
+
+    # Recebe o segundo arquivo (dados a adicionar)
+    second_file_path = inquirer.text(
+        message="Digite o caminho do segundo arquivo (.xlsx):"
+    ).execute()
+
+    try:
+        second_df = pd.read_excel(second_file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o segundo arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de CPF no segundo arquivo
+    second_cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF no segundo arquivo:",
+        choices=second_df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Normalizando CPFs...[/cyan]")
+    for _ in track(range(100), description="[cyan]Processando CPFs...[/cyan]"):
+        pass
+
+    # Normaliza os CPFs
+    base_df[base_cpf_column] = base_df[base_cpf_column].astype(str).str.zfill(11)
+    second_df[second_cpf_column] = second_df[second_cpf_column].astype(str).str.zfill(11)
+
+    # Identifica os CPFs em comum
+    print("\n[cyan]Filtrando apenas CPFs em comum...[/cyan]")
+    common_cpfs = base_df[base_cpf_column].isin(second_df[second_cpf_column])
+    base_df = base_df[common_cpfs]
+
+    # Filtra os dados do segundo arquivo para os CPFs em comum
+    merged_df = pd.merge(
+        base_df,
+        second_df,
+        left_on=base_cpf_column,
+        right_on=second_cpf_column,
+        suffixes=("", "_from_second")
+    )
+
+    # Remove a coluna CPF duplicada do segundo arquivo
+    merged_df.drop(columns=[second_cpf_column], inplace=True)
+
+    # Contagem de registros
+    total_cpfs_base = len(base_df)
+    total_cpfs_second = len(second_df)
+    total_cpfs_common = len(merged_df)
+
+    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+    print(f"[white]► CPFs no arquivo base:[/white]       {total_cpfs_base:,}")
+    print(f"[white]► CPFs no segundo arquivo:[/white]   {total_cpfs_second:,}")
+    print(f"[white]► CPFs em comum:[/white]            {total_cpfs_common:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo atualizado:"
+    ).execute()
+
+    # Define o caminho do arquivo de saída
+    output_file = os.path.join(output_dir, f'juncao_cpfs_{os.path.basename(base_file_path)}')
+
+    try:
+        merged_df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
+
+
 def filter_remove_by_name():
     """Função para filtrar e remover registros por nome."""
 
@@ -968,6 +1114,734 @@ def filter_remove_by_name():
     except Exception as e:
         print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
 
+def filter_agencies():
+    """Função para filtrar agências bancárias com base em critérios específicos."""
+    
+    print("\n[bold yellow]╔══ Iniciando Filtro de Agências ══╗[/bold yellow]\n")
+
+    # Recebe o arquivo Excel
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de agência
+    agency_column = inquirer.select(
+        message="Selecione a coluna de agência bancária:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Filtrando agências...[/cyan]")
+
+    # Critérios de filtragem
+    initial_count = len(df)
+    filtered_df = df[df[agency_column].astype(str).str.len() >= 4]
+    filtered_df = filtered_df[filtered_df[agency_column].notnull()]
+
+    final_count = len(filtered_df)
+    removed_count = initial_count - final_count
+
+    # Resumo da operação
+    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+    print(f"[white]► Registros originais:[/white]    {initial_count:,}")
+    print(f"[white]► Registros removidos:[/white]    {removed_count:,}")
+    print(f"[white]► Registros restantes:[/white]   {final_count:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo filtrado:"
+    ).execute()
+
+    # Salva o arquivo filtrado
+    output_file = os.path.join(output_dir, f"filtro_agencias_{os.path.basename(file_path)}")
+
+    try:
+        filtered_df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+
+def map_columns_and_merge():
+    """Função para mapear colunas de um modelo e preencher com dados de outro arquivo."""
+
+    # Recebe o arquivo modelo
+    print("\n[bold yellow]╔══ Iniciando Mapeamento de Colunas ══╗[/bold yellow]\n")
+    model_file_path = inquirer.text(
+        message="Digite o caminho do arquivo modelo (.xlsx):"
+    ).execute()
+
+    try:
+        model_df = pd.read_excel(model_file_path)
+        model_columns = model_df.columns.tolist()
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo modelo: {e}[/bold red]\n")
+        return
+
+    if not model_columns:
+        print("[bold red]✗ O arquivo modelo não possui cabeçalhos![bold red]\n")
+        return
+
+    # Recebe o arquivo com dados
+    data_file_path = inquirer.text(
+        message="Digite o caminho do arquivo de dados (.xlsx):"
+    ).execute()
+
+    try:
+        data_df = pd.read_excel(data_file_path)
+        data_columns = data_df.columns.tolist()
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo de dados: {e}[/bold red]\n")
+        return
+
+    if not data_columns:
+        print("[bold red]✗ O arquivo de dados não possui cabeçalhos![bold red]\n")
+        return
+
+    # Inicializa o DataFrame de saída com as mesmas colunas do modelo
+    output_df = pd.DataFrame(columns=model_columns)
+
+    # Mapeamento das colunas
+    column_mapping = {}
+    used_columns = set()
+    print("\n[cyan]Mapeie as colunas do arquivo modelo com as do arquivo de dados:[/cyan]\n")
+
+    for model_col in model_columns:
+        available_columns = [col for col in data_columns if col not in used_columns] + ["Ignorar"]
+        mapped_column = inquirer.select(
+            message=f"Selecione a coluna correspondente para '{model_col}' no arquivo de dados:",
+            choices=available_columns,
+        ).execute()
+
+        if mapped_column != "Ignorar":
+            column_mapping[model_col] = mapped_column
+            used_columns.add(mapped_column)
+
+    # Preenchendo o DataFrame de saída com os dados mapeados
+    for model_col, data_col in column_mapping.items():
+        output_df[model_col] = data_df[data_col]
+
+    # Exibindo resumo
+    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+    print(f"[white]► Linhas no arquivo modelo:[/white]       {len(model_df):,}")
+    print(f"[white]► Linhas no arquivo de dados:[/white]    {len(data_df):,}")
+    print(f"[white]► Colunas no arquivo modelo:[/white]     {len(model_columns):,}")
+    print(f"[white]► Colunas no arquivo de dados:[/white]   {len(data_columns):,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo resultante:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"resultado_{os.path.basename(model_file_path)}")
+
+    try:
+        output_df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+def validate_address_number():
+    """Valida números de endereço e preenche células vazias com 0, converte para texto no final."""
+    print("\n[bold yellow]╔══ Iniciando Validação de Números de Endereço ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de números de endereço
+    column_name = inquirer.select(
+        message="Selecione a coluna que contém os números de endereço:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Validando números de endereço...[/cyan]")
+
+    # Processando e preenchendo valores vazios
+    for _ in track(range(100), description="[cyan]Processando...[/cyan]"):
+        pass
+
+    try:
+        df[column_name] = df[column_name].fillna(0)
+        df[column_name] = df[column_name].apply(lambda x: int(str(x).strip()) if str(x).strip().isdigit() else 0)
+    except Exception as e:
+        print(f"[bold red]✗ Erro durante a validação: {e}[/bold red]\n")
+        return
+
+    # Convertendo todas as células para texto
+    df[column_name] = df[column_name].astype(str)
+
+    # Exibindo resumo
+    total_linhas = len(df)
+    linhas_vazias = (df[column_name] == "0").sum()
+
+    print("\n[bold green]╔══ Resumo da Validação ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo:[/white] {total_linhas:,}")
+    print(f"[white]► Linhas vazias na coluna:[/white]   {linhas_vazias:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo validado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"validated_address_numbers_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+def delete_rows_with_empty_cells():
+    """Remove linhas de um arquivo Excel onde a célula na coluna selecionada está vazia."""
+    print("\n[bold yellow]╔══ Iniciando Remoção de Linhas com Células Vazias ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna para verificar células vazias
+    column_name = inquirer.select(
+        message="Selecione a coluna para verificar células vazias:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Removendo linhas com células vazias...[/cyan]")
+
+    try:
+        # Remove linhas com células vazias na coluna selecionada
+        initial_row_count = len(df)
+        df = df.dropna(subset=[column_name])
+        final_row_count = len(df)
+        removed_rows = initial_row_count - final_row_count
+    except Exception as e:
+        print(f"[bold red]✗ Erro durante a remoção: {e}[/bold red]\n")
+        return
+
+    # Exibindo resumo
+    print("\n[bold green]╔══ Resumo da Remoção ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo original:[/white] {initial_row_count:,}")
+    print(f"[white]► Linhas removidas:[/white]                 {removed_rows:,}")
+    print(f"[white]► Total de linhas no arquivo final:[/white] {final_row_count:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo atualizado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"rows_removed_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+def format_benefit_file():
+    """Formata as colunas de sexo e tipo_beneficio em um arquivo Excel."""
+    print("\n[bold yellow]╔══ Iniciando Formatação de Benefício ══╗[/bold yellow]\n")
+
+    # Recebe o arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de sexo
+    sexo_column = inquirer.select(
+        message="Selecione a coluna de sexo:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    # Seleciona a coluna de tipo_beneficio
+    beneficio_column = inquirer.select(
+        message="Selecione a coluna de tipo_beneficio:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Formatando dados...[/cyan]")
+
+    # Formata a coluna de sexo
+    for _ in track(range(50), description="[cyan]Formatando coluna de sexo...[/cyan]"):
+        pass
+
+    df[sexo_column] = df[sexo_column].replace({'M': 'Masculino', 'F': 'Feminino'})
+
+    # Formata a coluna de tipo_beneficio
+    for _ in track(range(50), description="[cyan]Formatando coluna de tipo_beneficio...[/cyan]"):
+        pass
+
+    df[beneficio_column] = df[beneficio_column].astype(str).str[:2]
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo formatado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"format_benf_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
+
+def format_agency_column():
+    """
+    Formata uma coluna de agência, removendo o último dígito para agências com dois ou mais dígitos,
+    substituindo valores vazios, nulos ou iguais a '0' por '1', e salvando o arquivo com prefixo 'agencia_format_'.
+    """
+    print("\n[bold yellow]╔══ Iniciando Formatação de Agências ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de agência
+    agency_column = inquirer.select(
+        message="Selecione a coluna de agência:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Formatando valores da coluna de agência...[/cyan]")
+
+    # Função para formatar os valores da coluna de agência
+    def format_agency(value):
+        if pd.isna(value) or str(value).strip() in ('', '0'):
+            return '1'  # Substituir valores vazios, nulos ou iguais a 0 por '1'
+        value = str(value).strip()  # Remove espaços
+        if len(value) > 1:  # Se o valor tiver dois ou mais dígitos, remove o último dígito
+            return value[:-3]
+        return value
+
+    # Aplica a formatação e conta alterações
+    total_rows = len(df)
+    original_column = df[agency_column].astype(str).copy()  # Copia os valores originais como string
+    df[agency_column] = df[agency_column].apply(format_agency)
+    modified_rows = (original_column != df[agency_column]).sum()  # Conta as linhas modificadas
+
+    # Resumo da operação
+    print("\n[bold green]╔══ Resumo da Formatação ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo original:[/white] {total_rows:,}")
+    print(f"[white]► Linhas modificadas:[/white] {modified_rows:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo atualizado:"
+    ).execute()
+
+    # Define o caminho do arquivo de saída
+    output_file = os.path.join(output_dir, f"agencia_format_{os.path.basename(file_path)}")
+
+    # Salva o arquivo atualizado
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+def validate_and_format_cep():
+    """Valida, verifica existência e busca detalhes de CEPs usando a API OpenCEP."""
+    print("\n[bold yellow]╔══ Iniciando Validação e Busca de CEP ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona as colunas necessárias
+    cep_column = inquirer.select(
+        message="Selecione a coluna que contém os CEPs:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    endereco_column = inquirer.select(
+        message="Selecione a coluna de Endereço:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    bairro_column = inquirer.select(
+        message="Selecione a coluna de Bairro:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    cidade_column = inquirer.select(
+        message="Selecione a coluna de Cidade:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    estado_column = inquirer.select(
+        message="Selecione a coluna de Estado:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Validando CEPs...[/cyan]")
+
+    # Validação inicial do CEP
+    def validate_cep(value):
+        if pd.isna(value):
+            return None
+        cep = str(value).strip().replace("-", "")
+        if len(cep) != 8 or not cep.isdigit():
+            return None
+        return cep
+
+    # Aplicar validação
+    df[cep_column] = df[cep_column].apply(validate_cep)
+
+    # Remove linhas com CEP inválido
+    initial_row_count = len(df)
+    df_invalid = df[df[cep_column].isna()].copy()
+    df = df.dropna(subset=[cep_column]).copy()
+
+    print(f"[bold green]✓ Linhas removidas devido a CEPs inválidos: {len(df_invalid)}[/bold green]\n")
+
+    # Fase 1: Verificar se o CEP existe
+    print("[cyan]Verificando a existência dos CEPs...[/cyan]")
+
+    def check_cep_exists(cep):
+        try:
+            response = requests.get(f"https://opencep.com/v1/{cep}.json", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return "erro" not in data  # Retorna True se o CEP existir
+            return False
+        except Exception as e:
+            logging.warning(f"Erro ao verificar CEP {cep}: {e}")
+            return False
+
+    # Adiciona uma nova coluna para marcar CEPs existentes
+    df["EXISTE"] = False
+    for index in track(df.index, description="[cyan]Verificando CEPs...[/cyan]"):
+        cep = df.at[index, cep_column]
+        df.at[index, "EXISTE"] = check_cep_exists(cep)
+        print(f"Verificando linha {index + 1}/{len(df)} - CEP: {cep}")
+
+    # Fase 2: Obter detalhes dos CEPs existentes
+    print("[cyan]Buscando detalhes dos CEPs existentes...[/cyan]")
+    valid_indices = []
+
+    def fetch_cep_details(cep):
+        try:
+            response = requests.get(f"https://opencep.com/v1/{cep}.json")
+            if response.status_code == 200:
+                return response.json()
+        except Exception as e:
+            logging.warning(f"Erro ao buscar detalhes do CEP {cep}: {e}")
+            return None
+
+    for index in track(df.index, description="[cyan]Processando CEPs existentes...[/cyan]"):
+        if df.at[index, "EXISTE"]:
+            cep = df.at[index, cep_column]
+            address_data = fetch_cep_details(cep)
+            if address_data:
+                valid_indices.append(index)
+                df.at[index, endereco_column] = address_data.get("logradouro", df.at[index, endereco_column])
+                df.at[index, bairro_column] = address_data.get("bairro", df.at[index, bairro_column])
+                df.at[index, cidade_column] = address_data.get("localidade", df.at[index, cidade_column])
+                df.at[index, estado_column] = address_data.get("uf", df.at[index, estado_column])
+                print(f"Detalhes obtidos para CEP: {cep}")
+            else:
+                print(f"Falha ao buscar detalhes para o CEP: {cep}")
+
+    # Remove CEPs não existentes do DataFrame
+    df_invalid = pd.concat([df_invalid, df[~df["EXISTE"]]])
+    df_valid = df.loc[valid_indices].copy()
+    df.drop(columns=["EXISTE"], inplace=True)
+
+    # Resumo final
+    print("\n[bold green]╔══ Resumo Final ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo original:[/white] {initial_row_count:,}")
+    print(f"[white]► CEPs válidos encontrados e detalhados:[/white] {len(df_valid):,}")
+    print(f"[white]► Linhas removidas (CEPs inválidos ou inexistentes):[/white] {len(df_invalid):,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos:"
+    ).execute()
+
+    # Caminhos para os arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"cep_validos_{os.path.basename(file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"cep_invalidos_{os.path.basename(file_path)}")
+
+    # Salva os arquivos
+    try:
+        df_valid.to_excel(valid_output_file, index=False)
+        df_invalid.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com CEPs válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com CEPs inválidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
+def validador_de_bancos():
+    """
+    Valida colunas de banco, agência e conta.
+    Remove linhas que não atendem aos critérios:
+    - Banco: 1 a 3 dígitos
+    - Agência: 1 a 4 dígitos
+    - Conta: Não pode ter letras, espaços ou estar vazia.
+    """
+    print("\n[bold yellow]╔══ Iniciando Validação de Banco ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona as colunas necessárias
+    banco_column = inquirer.select(
+        message="Selecione a coluna de Banco:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    agencia_column = inquirer.select(
+        message="Selecione a coluna de Agência:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    conta_column = inquirer.select(
+        message="Selecione a coluna de Conta:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Validando dados...[/cyan]")
+
+    # Funções de validação
+    def is_valid_banco(value):
+        return str(value).isdigit() and 1 <= len(str(value)) <= 3
+
+    def is_valid_agencia(value):
+        return str(value).isdigit() and 1 <= len(str(value)) <= 4
+
+    def is_valid_conta(value):
+        return str(value).isdigit() and len(str(value)) > 0
+
+    # Inicializa contadores
+    initial_row_count = len(df)
+
+    # Aplica validação para todas as colunas e filtra as linhas inválidas
+    df["VALIDO"] = df[banco_column].apply(is_valid_banco) & \
+                   df[agencia_column].apply(is_valid_agencia) & \
+                   df[conta_column].apply(is_valid_conta)
+
+    df_invalid = df[~df["VALIDO"]].copy()  # Linhas inválidas
+    df = df[df["VALIDO"]].copy()           # Linhas válidas
+
+    # Remove a coluna auxiliar "VALIDO"
+    df.drop(columns=["VALIDO"], inplace=True)
+    df_invalid.drop(columns=["VALIDO"], inplace=True)
+
+    # Resumo da validação
+    linhas_invalidas = len(df_invalid)
+    linhas_validas = len(df)
+
+    print("\n[bold green]╔══ Resumo da Validação ══╗[/bold green]")
+    print(f"[white]► Linhas originais:[/white]    {initial_row_count:,}")
+    print(f"[white]► Linhas válidas:[/white]      {linhas_validas:,}")
+    print(f"[white]► Linhas inválidas:[/white]    {linhas_invalidas:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos filtrados:"
+    ).execute()
+
+    # Adiciona prefixo aos nomes dos arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"filtrar_bank_validos_{os.path.basename(file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"filtrar_bank_invalidos_{os.path.basename(file_path)}")
+
+    # Salva os arquivos
+    try:
+        df.to_excel(valid_output_file, index=False)
+        df_invalid.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com dados válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com dados inválidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
+def validate_sex_column():
+    """Valida a coluna de sexo, convertendo 'M' e 'F' para 'Masculino' e 'Feminino',
+    removendo linhas com valores inválidos."""
+    print("\n[bold yellow]╔══ Iniciando Validação da Coluna de Sexo ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de sexo
+    column_name = inquirer.select(
+        message="Selecione a coluna que contém os valores de sexo:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Validando a coluna de sexo...[/cyan]")
+
+    # Processando os valores
+    valid_sex_values = {"M": "Masculino", "F": "Feminino"}
+    try:
+        df[column_name] = df[column_name].apply(lambda x: valid_sex_values.get(str(x).strip(), x))
+
+        # Filtra as linhas válidas
+        valid_rows = df[column_name].isin(["Masculino", "Feminino"])
+        filtered_df = df[valid_rows].copy()
+
+        invalid_rows_count = len(df) - len(filtered_df)
+
+    except Exception as e:
+        print(f"[bold red]✗ Erro durante a validação: {e}[/bold red]\n")
+        return
+
+    # Exibindo resumo
+    total_linhas = len(df)
+    linhas_validas = len(filtered_df)
+
+    print("\n[bold green]╔══ Resumo da Validação ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo:[/white] {total_linhas:,}")
+    print(f"[white]► Linhas válidas:[/white] {linhas_validas:,}")
+    print(f"[white]► Linhas removidas:[/white] {invalid_rows_count:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo validado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"validated_sex_column_{os.path.basename(file_path)}")
+
+    try:
+        filtered_df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
+def extract_ddd_and_number():
+    """Função para extrair DDD e número de uma coluna de celular."""
+    print("\n[bold yellow]╔══ Iniciando Extração de DDD e Número ══╗[/bold yellow]\n")
+
+    # Recebe o arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[/bold red]\n")
+        return
+
+    # Seleciona a coluna de números de celular
+    phone_column = inquirer.select(
+        message="Selecione a coluna que contém os números de celular (DDD+Número):",
+        choices=df.columns.tolist()
+    ).execute()
+
+    # Seleciona a coluna de saída para DDD
+    ddd_column = inquirer.select(
+        message="Selecione a coluna onde será inserido o DDD extraído:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    # Inicializa contadores
+    total_registros = len(df)
+    registros_validos = 0
+    registros_invalidos = 0
+
+    # Processa cada linha e separa o DDD do número
+    def process_phone(value):
+        nonlocal registros_validos, registros_invalidos
+        if pd.isna(value):
+            registros_invalidos += 1
+            return None, None
+
+        value = str(value).strip()
+        if len(value) == 11 and value.isdigit():
+            registros_validos += 1
+            return value[:2], value[2:]
+        else:
+            registros_invalidos += 1
+            return None, None
+
+    print("\n[cyan]Processando números...[/cyan]")
+
+    df[ddd_column], df[phone_column] = zip(*df[phone_column].apply(process_phone))
+
+    # Exibe resumo da operação
+    print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
+    print(f"[white]► Registros totais:[/white]    {total_registros:,}")
+    print(f"[white]► Registros válidos:[/white]   {registros_validos:,}")
+    print(f"[white]► Registros inválidos:[/white] {registros_invalidos:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo atualizado:"
+    ).execute()
+
+    output_file = os.path.join(output_dir, f"extracted_number_ddd_{os.path.basename(file_path)}")
+
+    try:
+        df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
 def format_numbers_with_prefix():
     """Função para adicionar o prefixo '55' a números com 11 dígitos"""
     filter_system = ExcelFilter()
@@ -1022,7 +1896,10 @@ def main():
                 Choice("3", "Remoções"),
                 Choice("4", "Adições/Unificações"),
                 Choice("5", "Formatações"),
-                Choice("6", "Sair")
+                Choice("6", "Mapeamento de Colunas"),
+                Choice("7", "Formatação de Datas"),
+                Choice("8", "Buscar e Validar CEPs"),
+                Choice("9", "Sair")
             ]
         ).execute()
 
@@ -1037,6 +1914,12 @@ def main():
         elif choice == "5":
             formatacoes()
         elif choice == "6":
+            map_columns_and_merge()
+        elif choice == "7":
+            formatar_coluna_data()
+        elif choice == "8":
+            validate_and_format_cep()
+        elif choice == "9":
             print("Programa encerrado!")
             break
 
@@ -1047,7 +1930,10 @@ def filtros_unicos():
             choices=[
                 Choice("1", "Filtrar Excel (único)"),
                 Choice("2", "Filtrar valores numéricos"),
-                Choice("3", "Voltar")
+                Choice("3", "Extração de DDD e Números"),
+                Choice("4", "Filtrar Agências"),
+                Choice("5", "Validador de Bancos"),  # Adicionado o novo filtro
+                Choice("6", "Voltar")
             ]
         ).execute()
 
@@ -1056,7 +1942,14 @@ def filtros_unicos():
         elif choice == "2":
             filter_numeric()
         elif choice == "3":
+            extract_ddd_and_number()
+        elif choice == "4":
+            filter_agencies()
+        elif choice == "5":
+            validador_de_bancos()  # Chamada para a nova função
+        elif choice == "6":
             break
+
 
 def filtros_multiplos():
     while True:
@@ -1081,7 +1974,8 @@ def remocoes():
                 Choice("1", "Filtrar CPF - Remoção"),
                 Choice("2", "Filtrar e remover por nome"),
                 Choice("3", "Remover números fixos e células vazias"),
-                Choice("4", "Voltar")
+                Choice("4", "Remover Linhas com Células Vazias"),
+                Choice("5", "Voltar")
             ]
         ).execute()
 
@@ -1092,6 +1986,8 @@ def remocoes():
         elif choice == "3":
             filter_phone_numbers_csv()
         elif choice == "4":
+            delete_rows_with_empty_cells()
+        elif choice == "5":
             break
 
 def adicoes_unificacoes():
@@ -1101,7 +1997,8 @@ def adicoes_unificacoes():
             choices=[
                 Choice("1", "Unificar arquivos Excel"),
                 Choice("2", "Unificar arquivos Excel com base no CPF"),
-                Choice("3", "Voltar")
+                Choice("3", "Adicionar dados de CPFs entre arquivos"),
+                Choice("4", "Voltar")
             ]
         ).execute()
 
@@ -1110,6 +2007,8 @@ def adicoes_unificacoes():
         elif choice == "2":
             unify_excel_files_with_cpf()
         elif choice == "3":
+            adicionar_dados_por_cpf()
+        elif choice == "4":
             break
 
 def formatacoes():
@@ -1121,19 +2020,31 @@ def formatacoes():
                 Choice("2", "Formatar coluna de valores para padrão monetário"),
                 Choice("3", "Formatar Números com Prefixo '55'"),
                 Choice("4", "Filtrar e formatar RGs"),
-                Choice("5", "Voltar")
+                Choice("5", "Formatar Benefícios"),
+                Choice("6", "Validar Número de Endereço"),
+                Choice("7", "Validar Coluna de Sexo"),
+                Choice("8", "Formatar Coluna de Agência"),
+                Choice("9", "Voltar")
             ]
         ).execute()
 
         if choice == "1":
             adjust_cpfs_to_11_digits()
         elif choice == "2":
-            format_money_column()
+            format_values_to_money()
         elif choice == "3":
             format_numbers_with_prefix()
         elif choice == "4":
             filter_and_format_rgs()
         elif choice == "5":
+            format_benefit_file()
+        elif choice == "6":
+            validate_address_number()
+        elif choice == "7":
+            validate_sex_column()
+        elif choice == "8":
+            format_agency_column()
+        elif choice == "9":
             break
 
 if __name__ == "__main__":
