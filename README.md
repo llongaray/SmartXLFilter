@@ -101,3 +101,12 @@ Leonardo Longaray dos Santos
 - Adicionada a funcionalidade de formatação de RGs com validação e ajuste para 10 dígitos.
 - Reorganização do menu principal em categorias (Filtros, Remoções, Adições/Unificações, Formatações).
 - Melhorias na interface para selecionar e processar múltiplas opções de maneira mais intuitiva.
+
+### Atualização 1.2:
+- **Validação e Busca de CEPs**:
+  - Integração com a API OpenCEP para validação e busca de detalhes de CEPs.
+  - Processo em duas fases: validação de formato e existência, seguida da obtenção de informações completas (endereço, bairro, cidade e estado).
+- **Validador de Bancos**:
+  - Validação de colunas de banco, agência e conta.
+  - Remoção automática de linhas com dados inválidos.
+  - Critérios rígidos para garantir integridade dos dados (somente números, limites de dígitos para cada campo).
