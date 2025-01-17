@@ -1842,6 +1842,251 @@ def extract_ddd_and_number():
     except Exception as e:
         print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
 
+def whitelist_blacklist_removal():
+    """
+    Remove linhas do arquivo base que possuem números contidos no arquivo de blacklist.
+    """
+    print("\n[bold yellow]╔══ Remoção de Linhas com Números na Blacklist ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo base
+    base_file_path = inquirer.text(
+        message="Digite o caminho do arquivo base (.xlsx):"
+    ).execute()
+
+    try:
+        base_df = pd.read_excel(base_file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo base: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de números no arquivo base
+    base_number_column = inquirer.select(
+        message="Selecione a coluna de números do arquivo base:",
+        choices=base_df.columns.tolist()
+    ).execute()
+
+    # Recebe o caminho do arquivo de blacklist
+    blacklist_file_path = inquirer.text(
+        message="Digite o caminho do arquivo de blacklist (.xlsx):"
+    ).execute()
+
+    try:
+        blacklist_df = pd.read_excel(blacklist_file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo de blacklist: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de números no arquivo de blacklist
+    blacklist_number_column = inquirer.select(
+        message="Selecione a coluna de números do arquivo de blacklist:",
+        choices=blacklist_df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Removendo números contidos na blacklist...[/cyan]")
+
+    # Converte a coluna de números da blacklist em um conjunto para busca rápida
+    blacklist_numbers = set(blacklist_df[blacklist_number_column].astype(str).str.strip())
+
+    # Filtra as linhas no arquivo base
+    initial_row_count = len(base_df)
+    base_df["VALIDO"] = ~base_df[base_number_column].astype(str).str.strip().isin(blacklist_numbers)
+
+    valid_df = base_df[base_df["VALIDO"]].drop(columns=["VALIDO"]).copy()  # Linhas válidas
+    invalid_df = base_df[~base_df["VALIDO"]].drop(columns=["VALIDO"]).copy()  # Linhas removidas
+
+    # Resumo da remoção
+    linhas_removidas = len(invalid_df)
+    linhas_restantes = len(valid_df)
+
+    print("\n[bold green]╔══ Resumo da Remoção ══╗[/bold green]")
+    print(f"[white]► Total de linhas no arquivo base:[/white] {initial_row_count:,}")
+    print(f"[white]► Linhas removidas:[/white]              {linhas_removidas:,}")
+    print(f"[white]► Linhas restantes:[/white]             {linhas_restantes:,}")
+
+    # Pergunta o diretório para salvar os arquivos
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos filtrados:"
+    ).execute()
+
+    # Adiciona prefixos aos nomes dos arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"whitelist_{os.path.basename(base_file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"blacklist_{os.path.basename(base_file_path)}")
+
+    # Salva os arquivos
+    try:
+        valid_df.to_excel(valid_output_file, index=False)
+        invalid_df.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com números válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com números removidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
+def filter_num_nine():
+    """
+    Formata números de celular adicionando o dígito '9' após o DDD em números de 12 dígitos.
+    Remove linhas com números que não possuem 12 ou 13 dígitos.
+    """
+    print("\n[bold yellow]╔══ Formatação de Números com '9' ══╗[/bold yellow]\n")
+    print("[bold cyan]Observação: Certifique-se de que os números estejam no formato correto, começando com '55' seguido do DDD e número.[/bold cyan]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de números
+    number_column = inquirer.select(
+        message="Selecione a coluna de números de celular:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Formatando números...[/cyan]")
+
+    # Função para verificar e corrigir números
+    def format_number(value):
+        try:
+            value = str(value).strip()
+            if len(value) == 12:  # Número com 12 dígitos (faltando o 9)
+                return value[:4] + "9" + value[4:]
+            elif len(value) == 13:  # Número já no formato correto
+                return value
+            return None  # Número inválido
+        except Exception:
+            return None
+
+    # Aplica a formatação e filtra números inválidos
+    initial_row_count = len(df)
+    df[number_column] = df[number_column].apply(format_number)
+
+    df_invalid = df[df[number_column].isna()].copy()  # Números inválidos
+    df = df.dropna(subset=[number_column]).copy()     # Números válidos
+
+    # Resumo da formatação
+    linhas_invalidas = len(df_invalid)
+    linhas_validas = len(df)
+
+    print("\n[bold green]╔══ Resumo da Formatação ══╗[/bold green]")
+    print(f"[white]► Linhas originais:[/white] {initial_row_count:,}")
+    print(f"[white]► Números formatados:[/white] {linhas_validas:,}")
+    print(f"[white]► Linhas removidas (números inválidos):[/white] {linhas_invalidas:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos formatados:"
+    ).execute()
+
+    # Adiciona prefixo aos nomes dos arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"filtrer_num_nine_validos_{os.path.basename(file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"filtrer_num_nine_invalidos_{os.path.basename(file_path)}")
+
+    # Salva os arquivos
+    try:
+        df.to_excel(valid_output_file, index=False)
+        df_invalid.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com números válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com números inválidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
+def filter_back_age():
+    """
+    Valida banco, agência e conta e remove linhas que atendem aos critérios de remoção:
+    - Contém letras
+    - Contém espaços
+    - Está vazio
+    - É igual a zero
+    """
+    print("\n[bold yellow]╔══ Iniciando Validação de Banco, Agência e Conta ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona as colunas necessárias
+    banco_column = inquirer.select(
+        message="Selecione a coluna de Banco:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    agencia_column = inquirer.select(
+        message="Selecione a coluna de Agência:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    conta_column = inquirer.select(
+        message="Selecione a coluna de Conta:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    print("\n[cyan]Validando dados...[/cyan]")
+
+    # Função de validação
+    def is_invalid(value):
+        """Verifica se o valor contém letras, espaços, está vazio ou é igual a zero."""
+        if pd.isna(value) or str(value).strip() == "" or str(value).strip() == "0":
+            return True
+        if any(char.isalpha() for char in str(value)) or " " in str(value):
+            return True
+        return False
+
+    # Aplica a validação e filtra as linhas inválidas
+    initial_row_count = len(df)
+    df["VALIDO"] = ~(
+        df[banco_column].apply(is_invalid) |
+        df[agencia_column].apply(is_invalid) |
+        df[conta_column].apply(is_invalid)
+    )
+
+    df_invalid = df[~df["VALIDO"]].copy()  # Linhas inválidas
+    df = df[df["VALIDO"]].copy()           # Linhas válidas
+
+    # Remove a coluna auxiliar "VALIDO"
+    df.drop(columns=["VALIDO"], inplace=True)
+    df_invalid.drop(columns=["VALIDO"], inplace=True)
+
+    # Resumo da validação
+    linhas_invalidas = len(df_invalid)
+    linhas_validas = len(df)
+
+    print("\n[bold green]╔══ Resumo da Validação ══╗[/bold green]")
+    print(f"[white]► Linhas originais:[/white] {initial_row_count:,}")
+    print(f"[white]► Linhas válidas:[/white]   {linhas_validas:,}")
+    print(f"[white]► Linhas inválidas:[/white] {linhas_invalidas:,}")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos filtrados:"
+    ).execute()
+
+    # Adiciona prefixo aos nomes dos arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"filter_back_age_validos_{os.path.basename(file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"filter_back_age_invalidos_{os.path.basename(file_path)}")
+
+    # Salva os arquivos
+    try:
+        df.to_excel(valid_output_file, index=False)
+        df_invalid.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com dados válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com dados inválidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
 def format_numbers_with_prefix():
     """Função para adicionar o prefixo '55' a números com 11 dígitos"""
     filter_system = ExcelFilter()
@@ -1932,8 +2177,9 @@ def filtros_unicos():
                 Choice("2", "Filtrar valores numéricos"),
                 Choice("3", "Extração de DDD e Números"),
                 Choice("4", "Filtrar Agências"),
-                Choice("5", "Validador de Bancos"),  # Adicionado o novo filtro
-                Choice("6", "Voltar")
+                Choice("5", "Validador de Bancos"),
+                Choice("6", "Validador Banco, Agência e Conta"),  # Novo filtro adicionado
+                Choice("7", "Voltar")
             ]
         ).execute()
 
@@ -1946,8 +2192,10 @@ def filtros_unicos():
         elif choice == "4":
             filter_agencies()
         elif choice == "5":
-            validador_de_bancos()  # Chamada para a nova função
+            validador_de_bancos()
         elif choice == "6":
+            filter_back_age()  # Chamada para a nova função
+        elif choice == "7":
             break
 
 
@@ -1975,7 +2223,8 @@ def remocoes():
                 Choice("2", "Filtrar e remover por nome"),
                 Choice("3", "Remover números fixos e células vazias"),
                 Choice("4", "Remover Linhas com Células Vazias"),
-                Choice("5", "Voltar")
+                Choice("5", "Remover Números da Blacklist"),  # Nova funcionalidade adicionada
+                Choice("6", "Voltar")
             ]
         ).execute()
 
@@ -1988,7 +2237,10 @@ def remocoes():
         elif choice == "4":
             delete_rows_with_empty_cells()
         elif choice == "5":
+            whitelist_blacklist_removal()  # Chamada para a nova função
+        elif choice == "6":
             break
+
 
 def adicoes_unificacoes():
     while True:
@@ -2024,7 +2276,8 @@ def formatacoes():
                 Choice("6", "Validar Número de Endereço"),
                 Choice("7", "Validar Coluna de Sexo"),
                 Choice("8", "Formatar Coluna de Agência"),
-                Choice("9", "Voltar")
+                Choice("9", "Formatar Números de Celular sem '9'"),  # Nova funcionalidade adicionada
+                Choice("10", "Voltar")
             ]
         ).execute()
 
@@ -2045,7 +2298,10 @@ def formatacoes():
         elif choice == "8":
             format_agency_column()
         elif choice == "9":
+            filter_num_nine()  # Chamada para a nova função
+        elif choice == "10":
             break
+
 
 if __name__ == "__main__":
     main()
