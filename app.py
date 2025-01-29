@@ -951,38 +951,51 @@ def formatar_coluna_data():
 
 
 def adicionar_dados_por_cpf():
-    """Função para adicionar colunas de dados de um arquivo Excel a outro com base no CPF."""
+    
+    """
+    Adiciona colunas de dados de um arquivo Excel a outro com base no CPF.
+    - O arquivo final contém apenas os CPFs do primeiro arquivo encontrados no segundo arquivo,
+      acompanhados pelos dados da linha respectiva no segundo arquivo.
+    """
     print("\n[bold yellow]╔══ Iniciando Junção por CPF ══╗[/bold yellow]\n")
 
-    # Recebe o primeiro arquivo (base)
+    # Recebe o arquivo base com os CPFs
     base_file_path = inquirer.text(
         message="Digite o caminho do arquivo base (.xlsx):"
     ).execute()
 
     try:
-        base_df = pd.read_excel(base_file_path)
+        # Lê o arquivo base
+        base_df = pd.read_excel(base_file_path, engine="openpyxl")
+        if base_df.empty:
+            print("[bold red]✗ O arquivo base está vazio ou não contém dados válidos.[bold red]\n")
+            return
     except Exception as e:
-        print(f"[bold red]✗ Erro ao carregar o arquivo base: {e}[/bold red]\n")
+        print(f"[bold red]✗ Erro ao carregar o arquivo base: {e}[bold red]\n")
         return
 
-    # Seleciona a coluna de CPF no arquivo base
+    # Seleciona a coluna de CPFs no arquivo base
     base_cpf_column = inquirer.select(
         message="Selecione a coluna de CPF no arquivo base:",
         choices=base_df.columns.tolist()
     ).execute()
 
-    # Recebe o segundo arquivo (dados a adicionar)
+    # Recebe o segundo arquivo com dados adicionais
     second_file_path = inquirer.text(
         message="Digite o caminho do segundo arquivo (.xlsx):"
     ).execute()
 
     try:
-        second_df = pd.read_excel(second_file_path)
+        # Lê o segundo arquivo
+        second_df = pd.read_excel(second_file_path, engine="openpyxl")
+        if second_df.empty:
+            print("[bold red]✗ O segundo arquivo está vazio ou não contém dados válidos.[bold red]\n")
+            return
     except Exception as e:
-        print(f"[bold red]✗ Erro ao carregar o segundo arquivo: {e}[/bold red]\n")
+        print(f"[bold red]✗ Erro ao carregar o segundo arquivo: {e}[bold red]\n")
         return
 
-    # Seleciona a coluna de CPF no segundo arquivo
+    # Seleciona a coluna de CPFs no segundo arquivo
     second_cpf_column = inquirer.select(
         message="Selecione a coluna de CPF no segundo arquivo:",
         choices=second_df.columns.tolist()
@@ -992,28 +1005,35 @@ def adicionar_dados_por_cpf():
     for _ in track(range(100), description="[cyan]Processando CPFs...[/cyan]"):
         pass
 
-    # Normaliza os CPFs
-    base_df[base_cpf_column] = base_df[base_cpf_column].astype(str).str.zfill(11)
-    second_df[second_cpf_column] = second_df[second_cpf_column].astype(str).str.zfill(11)
+    # Normaliza os CPFs para 11 dígitos
+    try:
+        base_df[base_cpf_column] = base_df[base_cpf_column].astype(str).str.zfill(11)
+        second_df[second_cpf_column] = second_df[second_cpf_column].astype(str).str.zfill(11)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao normalizar os CPFs: {e}[bold red]\n")
+        return
 
-    # Identifica os CPFs em comum
-    print("\n[cyan]Filtrando apenas CPFs em comum...[/cyan]")
-    common_cpfs = base_df[base_cpf_column].isin(second_df[second_cpf_column])
-    base_df = base_df[common_cpfs]
+    print("\n[cyan]Filtrando apenas CPFs encontrados no segundo arquivo...[/cyan]")
+    try:
+        # Filtra apenas os CPFs do arquivo base que existem no segundo arquivo
+        filtered_second_df = second_df[second_df[second_cpf_column].isin(base_df[base_cpf_column])]
 
-    # Filtra os dados do segundo arquivo para os CPFs em comum
-    merged_df = pd.merge(
-        base_df,
-        second_df,
-        left_on=base_cpf_column,
-        right_on=second_cpf_column,
-        suffixes=("", "_from_second")
-    )
+        # Faz o merge para adicionar os dados do segundo arquivo ao primeiro
+        merged_df = pd.merge(
+            base_df,
+            filtered_second_df,
+            left_on=base_cpf_column,
+            right_on=second_cpf_column,
+            suffixes=("", "_from_second")
+        )
 
-    # Remove a coluna CPF duplicada do segundo arquivo
-    merged_df.drop(columns=[second_cpf_column], inplace=True)
+        # Remove a coluna duplicada do segundo arquivo
+        merged_df.drop(columns=[second_cpf_column], inplace=True)
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao combinar os arquivos: {e}[bold red]\n")
+        return
 
-    # Contagem de registros
+    # Resumo do processo
     total_cpfs_base = len(base_df)
     total_cpfs_second = len(second_df)
     total_cpfs_common = len(merged_df)
@@ -1021,23 +1041,78 @@ def adicionar_dados_por_cpf():
     print("\n[bold green]╔══ Resumo da Operação ══╗[/bold green]")
     print(f"[white]► CPFs no arquivo base:[/white]       {total_cpfs_base:,}")
     print(f"[white]► CPFs no segundo arquivo:[/white]   {total_cpfs_second:,}")
-    print(f"[white]► CPFs em comum:[/white]            {total_cpfs_common:,}")
+    print(f"[white]► CPFs encontrados:[/white]          {total_cpfs_common:,}")
 
-    # Pergunta o diretório para salvar
+    # Pergunta o diretório para salvar o arquivo final
     output_dir = inquirer.text(
-        message="Digite o caminho para salvar o arquivo atualizado:"
+        message="Digite o caminho para salvar o arquivo final:"
     ).execute()
 
     # Define o caminho do arquivo de saída
     output_file = os.path.join(output_dir, f'juncao_cpfs_{os.path.basename(base_file_path)}')
 
+    print("\n[cyan]Salvando arquivo final...[/cyan]")
     try:
-        merged_df.to_excel(output_file, index=False)
+        # Salva o arquivo combinado
+        merged_df.to_excel(output_file, index=False, engine="openpyxl")
         print(f"\n[bold green]✓ Processo concluído com sucesso![bold green]")
         print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
     except Exception as e:
-        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[/bold red]\n")
+        print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
 
+def unifique_one():
+    """
+    Unifica todas as planilhas .xlsx de uma pasta em um único arquivo.
+    """
+    print("\n[bold yellow]╔══ Unificação de Planilhas ══╗[/bold yellow]\n")
+
+    # Recebe o caminho da pasta com as planilhas
+    folder_path = inquirer.text(
+        message="Digite o caminho da pasta contendo as planilhas .xlsx:"
+    ).execute()
+
+    if not os.path.exists(folder_path):
+        print(f"[bold red]✗ A pasta especificada não existe: {folder_path}[bold red]\n")
+        return
+
+    # Lista todas as planilhas .xlsx na pasta
+    files = [f for f in os.listdir(folder_path) if f.endswith(".xlsx")]
+    if not files:
+        print(f"[bold red]✗ Não foram encontradas planilhas .xlsx na pasta: {folder_path}[bold red]\n")
+        return
+
+    print(f"[cyan]Encontradas {len(files)} planilhas para unificação...[/cyan]\n")
+
+    # Unifica todas as planilhas em um único DataFrame
+    unified_df = pd.DataFrame()
+    for file in files:
+        try:
+            file_path = os.path.join(folder_path, file)
+            df = pd.read_excel(file_path)
+            unified_df = pd.concat([unified_df, df], ignore_index=True)
+            print(f"[green]✓ Unificada: {file}[green]")
+        except Exception as e:
+            print(f"[bold red]✗ Erro ao unificar {file}: {e}[bold red]")
+
+    # Pergunta o diretório para salvar
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo unificado:"
+    ).execute()
+
+    if not os.path.exists(output_dir):
+        print(f"[bold red]✗ A pasta especificada para salvar não existe: {output_dir}[bold red]\n")
+        return
+
+    # Caminho do arquivo de saída
+    output_file = os.path.join(output_dir, "unifique_one_result.xlsx")
+
+    # Salva o arquivo unificado
+    try:
+        unified_df.to_excel(output_file, index=False)
+        print(f"\n[bold green]✓ Arquivo unificado salvo com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar o arquivo unificado: {e}[bold red]\n")
 
 def filter_remove_by_name():
     """Função para filtrar e remover registros por nome."""
@@ -2087,6 +2162,89 @@ def filter_back_age():
     except Exception as e:
         print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
 
+def merge_ddd_number():
+    """
+    Une as colunas DDD e Número em uma nova coluna.
+    - DDD deve ter 2 dígitos.
+    - Número deve ter 9 dígitos.
+    - Linhas fora desses critérios são excluídas.
+    """
+    print("\n[bold yellow]╔══ Unificação de Colunas DDD + Número ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        # Lê apenas o cabeçalho do arquivo para selecionar colunas
+        columns = pd.read_excel(file_path, nrows=0).columns.tolist()
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o cabeçalho do arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona as colunas necessárias
+    ddd_column = inquirer.select(
+        message="Selecione a coluna do DDD:",
+        choices=columns
+    ).execute()
+
+    number_column = inquirer.select(
+        message="Selecione a coluna do número:",
+        choices=columns
+    ).execute()
+
+    print("\n[cyan]Unificando colunas DDD e Número...[/cyan]")
+
+    try:
+        # Lê o arquivo completo
+        df = pd.read_excel(file_path)
+
+        # Filtros de validação
+        def is_valid_ddd(value):
+            return isinstance(value, str) and value.isdigit() and len(value) == 2
+
+        def is_valid_number(value):
+            return isinstance(value, str) and value.isdigit() and len(value) == 9
+
+        # Aplica filtros de validação
+        df["VALIDO"] = df[ddd_column].astype(str).apply(is_valid_ddd) & \
+                       df[number_column].astype(str).apply(is_valid_number)
+
+        df_valid = df[df["VALIDO"]].copy()  # Linhas válidas
+        df_invalid = df[~df["VALIDO"]].copy()  # Linhas inválidas
+
+        # Remove a coluna auxiliar "VALIDO"
+        df_valid.drop(columns=["VALIDO"], inplace=True)
+        df_invalid.drop(columns=["VALIDO"], inplace=True)
+
+        # Cria a nova coluna unificada para linhas válidas
+        df_valid["DDD+Número"] = df_valid[ddd_column].astype(str).str.strip() + \
+                                 df_valid[number_column].astype(str).str.strip()
+
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao processar o arquivo: {e}[bold red]\n")
+        return
+
+    # Pergunta o diretório para salvar os arquivos
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar os arquivos formatados:"
+    ).execute()
+
+    # Caminhos para os arquivos de saída
+    valid_output_file = os.path.join(output_dir, f"merged_ddd_number_validos_{os.path.basename(file_path)}")
+    invalid_output_file = os.path.join(output_dir, f"merged_ddd_number_invalidos_{os.path.basename(file_path)}")
+
+    # Salva os arquivos
+    try:
+        df_valid.to_excel(valid_output_file, index=False)
+        df_invalid.to_excel(invalid_output_file, index=False)
+        print(f"\n[bold green]✓ Arquivo salvo com sucesso![bold green]")
+        print(f"[dim]📁 Arquivo com números válidos salvo em: {valid_output_file}[dim]")
+        print(f"[dim]📁 Arquivo com números inválidos salvo em: {invalid_output_file}[dim]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+
 def format_numbers_with_prefix():
     """Função para adicionar o prefixo '55' a números com 11 dígitos"""
     filter_system = ExcelFilter()
@@ -2130,6 +2288,304 @@ def format_numbers_with_prefix():
     print(f"[white]► Total de números processados:[/white] {total_numbers:,}")
     print(f"[white]► Números formatados com prefixo '55':[/white] {formatted_count:,}")
     print(f"[dim]📁 Arquivo salvo em: {output_file}[/dim]\n")
+
+def validar_numeros_celular():
+    from rich.console import Console
+    from rich.progress import Progress
+    console = Console()
+
+    """
+    Valida números de celular em uma coluna específica.
+    - Números válidos: exatamente 11 dígitos.
+    - Separa números válidos e inválidos em planilhas diferentes.
+    - Gera arquivos contendo apenas CPFs com números válidos e inválidos.
+    """
+    console.print("\n[bold yellow]╔══ Validação de Números de Celular ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo Excel
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        # Lê apenas o cabeçalho do arquivo para selecionar colunas
+        columns = pd.read_excel(file_path, nrows=0).columns.tolist()
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao carregar o cabeçalho do arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de números de celular
+    celular_column = inquirer.select(
+        message="Selecione a coluna de números de celular:",
+        choices=columns
+    ).execute()
+
+    # Seleciona a coluna de CPF
+    cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF:",
+        choices=columns
+    ).execute()
+
+    try:
+        # Lê o arquivo Excel e mantém apenas as colunas selecionadas
+        df = pd.read_excel(file_path, usecols=[cpf_column, celular_column], dtype=str)
+
+        # Converte o DataFrame para CSV apenas com as colunas selecionadas
+        csv_file_path = file_path.replace(".xlsx", "_cpf_celular.csv")
+        df.to_csv(csv_file_path, index=False, sep=';', encoding='utf-8')
+        console.print(f"[cyan]✓ Arquivo convertido para CSV: {csv_file_path}[cyan]\n")
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    console.print("\n[cyan]Validando números de celular...[/cyan]")
+
+    try:
+        # Lê o arquivo CSV completo
+        df = pd.read_csv(csv_file_path, sep=';', dtype=str)
+
+        # Função de validação para números de celular
+        def is_valid_number(value):
+            if pd.isna(value):
+                return False
+            value = str(value).strip()
+            return value.isdigit() and len(value) == 11
+
+        # Aplica a validação com barra de progresso
+        with Progress() as progress:
+            task = progress.add_task("Validando números", total=len(df))
+            df["VALIDO"] = df[celular_column].apply(lambda x: is_valid_number(x))
+            progress.update(task, advance=len(df))
+
+        # Separa números válidos e inválidos, mantendo apenas a coluna CPF
+        df_validos = df[df["VALIDO"] == True][[cpf_column]].copy()
+        df_invalidos = df[df["VALIDO"] == False][[cpf_column]].copy()
+
+        # Resumo da validação
+        linhas_validas = len(df_validos)
+        linhas_invalidas = len(df_invalidos)
+
+        console.print("\n[bold green]╔══ Resumo da Validação ══╗[/bold green]")
+        console.print(f"[white]► CPFs com números válidos:[/white] {linhas_validas:,}")
+        console.print(f"[white]► CPFs com números inválidos:[/white] {linhas_invalidas:,}")
+
+        # Pergunta o diretório para salvar os arquivos
+        output_dir = inquirer.text(
+            message="Digite o caminho para salvar os arquivos filtrados:"
+        ).execute()
+
+        # Caminhos para os arquivos de saída
+        valid_output_file = os.path.join(output_dir, f"Valido_{os.path.basename(csv_file_path)}")
+        invalid_output_file = os.path.join(output_dir, f"Invalido_{os.path.basename(csv_file_path)}")
+
+        # Salva os arquivos com barra de progresso
+        with Progress() as progress:
+            task_save = progress.add_task("Salvando arquivos", total=2)
+
+            try:
+                df_validos.to_csv(valid_output_file, index=False, sep=';', encoding='utf-8')
+                progress.update(task_save, advance=1)
+                df_invalidos.to_csv(invalid_output_file, index=False, sep=';', encoding='utf-8')
+                progress.update(task_save, advance=1)
+
+                console.print(f"\n[bold green]✓ Arquivos salvos com sucesso![bold green]")
+                console.print(f"[dim]📁 Arquivo com números válidos salvo em: {valid_output_file}[dim]")
+                console.print(f"[dim]📁 Arquivo com números inválidos salvo em: {invalid_output_file}[dim]\n")
+            except Exception as e:
+                console.print(f"[bold red]✗ Erro ao salvar os arquivos: {e}[bold red]\n")
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao processar o arquivo: {e}[bold red]\n")
+
+
+
+def formatar_numeros_para_11_digitos():
+    """
+    Formata números de celular para 11 dígitos.
+    - Números com 12 dígitos: remove o último dígito (zero extra no final).
+    - O cabeçalho do arquivo é lido diretamente do XLSX para identificar as colunas.
+    - O CSV é usado para manipulação dos dados e o arquivo final é salvo em XLSX.
+    """
+    print("\n[bold yellow]╔══ Formatação de Números para 11 Dígitos ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo Excel
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo Excel (.xlsx):"
+    ).execute()
+
+    try:
+        # Lê apenas a primeira linha para obter o cabeçalho
+        df_header = pd.read_excel(file_path, nrows=1, engine="openpyxl")
+        header = df_header.columns.tolist()
+        if not header:
+            print("[bold red]✗ O arquivo não possui cabeçalho válido.[bold red]\n")
+            return
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar o cabeçalho do arquivo: {e}[bold red]\n")
+        return
+
+    # Mapeia as colunas para suas posições (exemplo: A, B, C, etc.)
+    column_positions = [f"{chr(65 + i)}" for i in range(len(header))]
+    choices = [f"{col_positions} - {header[i]}" for i, col_positions in enumerate(column_positions)]
+
+    # Usuário seleciona a coluna com base na posição
+    selected_column_choice = inquirer.select(
+        message="Selecione a coluna de números de celular:",
+        choices=choices
+    ).execute()
+
+    # Extrai o índice da coluna selecionada
+    column_index = choices.index(selected_column_choice)
+    column_name = header[column_index]
+
+    try:
+        # Lê apenas a segunda linha do arquivo para validar o conteúdo
+        df_sample = pd.read_excel(file_path, nrows=2, engine="openpyxl")
+        second_row_value = df_sample.iloc[1, column_index]
+        print(f"\n[cyan]Conteúdo da célula A2 (coluna '{column_name}'): {second_row_value}[cyan]\n")
+
+        confirm = inquirer.confirm(
+            message=f"Essa é a coluna correta para '{column_name}'?",
+            default=True
+        ).execute()
+
+        if not confirm:
+            print("[bold red]✗ Operação cancelada pelo usuário.[bold red]\n")
+            return
+
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao carregar a segunda linha do arquivo: {e}[bold red]\n")
+        return
+
+    print("\n[cyan]Convertendo arquivo para CSV para otimizar a manipulação...[/cyan]")
+
+    try:
+        # Converte o arquivo completo para CSV
+        csv_file_path = file_path.replace(".xlsx", ".csv")
+        df = pd.read_excel(file_path, engine="openpyxl")
+        df.to_csv(csv_file_path, index=False, encoding='utf-8')
+        print(f"[cyan]✓ Arquivo convertido para CSV: {csv_file_path}[cyan]\n")
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao converter o arquivo para CSV: {e}[bold red]\n")
+        return
+
+    print("\n[cyan]Formatando números de celular...[/cyan]")
+
+    try:
+        # Lê o CSV completo
+        df = pd.read_csv(csv_file_path, dtype=str)
+
+        # Função para formatar números
+        def format_number(value):
+            value = str(value).strip()
+            if value.isdigit() and len(value) == 12:
+                return value[:-1]  # Remove o último dígito
+            return value  # Retorna o valor original
+
+        # Aplica a formatação na coluna selecionada
+        df[column_name] = df[column_name].apply(format_number)
+
+        # Pergunta o diretório para salvar o arquivo formatado
+        output_dir = inquirer.text(
+            message="Digite o caminho para salvar o arquivo formatado:"
+        ).execute()
+
+        # Caminho do arquivo de saída em CSV
+        formatted_csv_path = os.path.join(output_dir, f"formatado_11_digitos_{os.path.basename(csv_file_path)}")
+
+        # Salva o arquivo formatado como CSV
+        df.to_csv(formatted_csv_path, index=False, encoding='utf-8')
+        print(f"[cyan]✓ Arquivo formatado salvo como CSV: {formatted_csv_path}[cyan]\n")
+
+        # Converte o CSV final para XLSX
+        final_xlsx_path = formatted_csv_path.replace(".csv", ".xlsx")
+        df.to_excel(final_xlsx_path, index=False)
+        print(f"\n[bold green]✓ Arquivo final salvo como XLSX:[bold green]")
+        print(f"[dim]📁 Arquivo salvo em: {final_xlsx_path}[dim]\n")
+
+    except Exception as e:
+        print(f"[bold red]✗ Erro ao processar o arquivo: {e}[bold red]\n")
+
+
+def remover_duplicatas_cpfs():
+    from rich.console import Console
+    console = Console()
+
+    """
+    Recebe um arquivo Excel ou CSV, seleciona a coluna de CPFs, normaliza e remove duplicatas.
+    - Mantém apenas a primeira ocorrência de cada CPF.
+    """
+    console.print("\n[bold yellow]╔══ Remoção de Duplicatas por CPF ══╗[/bold yellow]\n")
+
+    # Recebe o caminho do arquivo
+    file_path = inquirer.text(
+        message="Digite o caminho do arquivo (.xlsx ou .csv):"
+    ).execute()
+
+    try:
+        # Verifica o tipo de arquivo e lê o arquivo correspondente
+        if file_path.endswith('.xlsx'):
+            df = pd.read_excel(file_path, engine="openpyxl")
+        elif file_path.endswith('.csv'):
+            df = pd.read_csv(file_path, sep=';', dtype=str)
+        else:
+            console.print("[bold red]✗ Formato de arquivo não suportado. Use .xlsx ou .csv.[bold red]\n")
+            return
+
+        if df.empty:
+            console.print("[bold red]✗ O arquivo está vazio ou não contém dados válidos.[bold red]\n")
+            return
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao carregar o arquivo: {e}[bold red]\n")
+        return
+
+    # Seleciona a coluna de CPF
+    cpf_column = inquirer.select(
+        message="Selecione a coluna de CPF no arquivo:",
+        choices=df.columns.tolist()
+    ).execute()
+
+    console.print("\n[cyan]Normalizando CPFs...[/cyan]")
+
+    try:
+        # Normaliza os CPFs para 11 dígitos
+        df[cpf_column] = df[cpf_column].astype(str).str.replace(r'\D', '', regex=True).str.zfill(11)
+
+        # Remove duplicatas, mantendo a primeira ocorrência de cada CPF
+        df_deduplicated = df.drop_duplicates(subset=cpf_column, keep='first')
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao normalizar ou remover duplicatas: {e}[bold red]\n")
+        return
+
+    # Resumo da operação
+    total_linhas = len(df)
+    total_linhas_unicas = len(df_deduplicated)
+    duplicatas_removidas = total_linhas - total_linhas_unicas
+
+    console.print("\n[bold green]╔══ Resumo da Remoção de Duplicatas ══╗[/bold green]")
+    console.print(f"[white]► Total de linhas no arquivo original:[/white] {total_linhas:,}")
+    console.print(f"[white]► Total de linhas únicas (sem duplicatas):[/white] {total_linhas_unicas:,}")
+    console.print(f"[white]► Duplicatas removidas:[/white] {duplicatas_removidas:,}")
+
+    # Pergunta o diretório para salvar o arquivo final
+    output_dir = inquirer.text(
+        message="Digite o caminho para salvar o arquivo sem duplicatas:"
+    ).execute()
+
+    # Define o caminho do arquivo de saída
+    output_file = os.path.join(output_dir, f'sem_duplicatas_{os.path.basename(file_path)}')
+
+    console.print("\n[cyan]Salvando arquivo final...[/cyan]")
+    try:
+        # Salva o arquivo sem duplicatas no formato correspondente
+        if file_path.endswith('.xlsx'):
+            df_deduplicated.to_excel(output_file, index=False, engine="openpyxl")
+        elif file_path.endswith('.csv'):
+            df_deduplicated.to_csv(output_file, index=False, sep=';', encoding='utf-8')
+        console.print(f"\n[bold green]✓ Arquivo salvo com sucesso![bold green]")
+        console.print(f"[dim]📁 Arquivo salvo em: {output_file}[dim]\n")
+    except Exception as e:
+        console.print(f"[bold red]✗ Erro ao salvar o arquivo: {e}[bold red]\n")
+
 
 def main():
     while True:
@@ -2178,8 +2634,9 @@ def filtros_unicos():
                 Choice("3", "Extração de DDD e Números"),
                 Choice("4", "Filtrar Agências"),
                 Choice("5", "Validador de Bancos"),
-                Choice("6", "Validador Banco, Agência e Conta"),  # Novo filtro adicionado
-                Choice("7", "Voltar")
+                Choice("6", "Validador Banco, Agência e Conta"),
+                Choice("7", "Validar Números de Celular"),  # Nova funcionalidade adicionada
+                Choice("8", "Voltar")
             ]
         ).execute()
 
@@ -2194,9 +2651,12 @@ def filtros_unicos():
         elif choice == "5":
             validador_de_bancos()
         elif choice == "6":
-            filter_back_age()  # Chamada para a nova função
+            filter_back_age()
         elif choice == "7":
+            validar_numeros_celular()  # Chamada para a nova função
+        elif choice == "8":
             break
+
 
 
 def filtros_multiplos():
@@ -2223,8 +2683,9 @@ def remocoes():
                 Choice("2", "Filtrar e remover por nome"),
                 Choice("3", "Remover números fixos e células vazias"),
                 Choice("4", "Remover Linhas com Células Vazias"),
-                Choice("5", "Remover Números da Blacklist"),  # Nova funcionalidade adicionada
-                Choice("6", "Voltar")
+                Choice("5", "Remover Números da Blacklist"),
+                Choice("6", "Remover Duplicatas por CPF"),  # Nova funcionalidade adicionada
+                Choice("7", "Voltar")
             ]
         ).execute()
 
@@ -2237,9 +2698,12 @@ def remocoes():
         elif choice == "4":
             delete_rows_with_empty_cells()
         elif choice == "5":
-            whitelist_blacklist_removal()  # Chamada para a nova função
+            whitelist_blacklist_removal()
         elif choice == "6":
+            remover_duplicatas_cpfs()  # Chamada para a função de remover duplicatas por CPF
+        elif choice == "7":
             break
+
 
 
 def adicoes_unificacoes():
@@ -2250,7 +2714,9 @@ def adicoes_unificacoes():
                 Choice("1", "Unificar arquivos Excel"),
                 Choice("2", "Unificar arquivos Excel com base no CPF"),
                 Choice("3", "Adicionar dados de CPFs entre arquivos"),
-                Choice("4", "Voltar")
+                Choice("4", "Unificar todas as planilhas em uma pasta"),
+                Choice("5", "Unificar colunas DDD e Número"),  # Nova funcionalidade adicionada
+                Choice("6", "Voltar")
             ]
         ).execute()
 
@@ -2261,7 +2727,13 @@ def adicoes_unificacoes():
         elif choice == "3":
             adicionar_dados_por_cpf()
         elif choice == "4":
+            unifique_one()
+        elif choice == "5":
+            merge_ddd_number()  # Chamada para a nova função
+        elif choice == "6":
             break
+
+
 
 def formatacoes():
     while True:
@@ -2276,8 +2748,9 @@ def formatacoes():
                 Choice("6", "Validar Número de Endereço"),
                 Choice("7", "Validar Coluna de Sexo"),
                 Choice("8", "Formatar Coluna de Agência"),
-                Choice("9", "Formatar Números de Celular sem '9'"),  # Nova funcionalidade adicionada
-                Choice("10", "Voltar")
+                Choice("9", "Formatar Números de Celular sem '9'"),
+                Choice("10", "Formatar Números de Celular para 11 Dígitos"),  # Nova funcionalidade adicionada
+                Choice("11", "Voltar")
             ]
         ).execute()
 
@@ -2298,9 +2771,12 @@ def formatacoes():
         elif choice == "8":
             format_agency_column()
         elif choice == "9":
-            filter_num_nine()  # Chamada para a nova função
+            filter_num_nine()
         elif choice == "10":
+            formatar_numeros_para_11_digitos()  # Chamada para a nova função
+        elif choice == "11":
             break
+
 
 
 if __name__ == "__main__":
